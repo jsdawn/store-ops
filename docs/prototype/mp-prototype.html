@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="5iIEfnSLXo7rOuAi1tux5S">
+<head data-page-node-id="bE5aswh2WTzUC4JCi6AMIC">
+<meta charset="UTF-8" data-page-node-id="PA8t7y0aYEtgAucN7LnbjN">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="L45T826O9tj1cUCEerY7Wx">
+<title>store-ops 小程序原型 · 顾客端 + 商家工作台（低保真 v3）</title>
+<!--
+  低保真交互原型 v3：验证 PRD v1.0 页面结构与核心流程，不代表最终视觉。
+  v3 变更（用户确认）：① 顾客端 tab 收敛为两个——会员中心（店名/余额/积分/入口，
+  员工多一个工作台入口）+ 积分商城；原「首页」「我的」合并，消除职责争议
+  ② 手机容器内滚动条细化为细条半透明样式。工作台视图不变。
+  核心可验证流程：
+  1. 收银开单：逐笔累加（单价×数量）→ 自动合计 → 选券（不可用置灰）→ 支付方式 → 确认收款
+  2. 充值录入：本金+赠送 → 到账合计自动 → 方式标记 → 确认到账
+  3. 积分兑券：商城选券 → 积分校验 → 兑换成功
+  4. 门店切换：仅已注册门店；进入新门店需扫码
+-->
+<style>
+:root{
+  --bg:#f4f6f8; --surface:#ffffff; --text:#1a1d21; --muted:#8a8f99;
+  --accent:#07c160; --accent-deep:#059048; --accent-bg:#e7f8ef;
+  --brand-1:#0b3d2e; --brand-2:#0f6e56; --brand-3:#1d9e75;
+  --danger:#e24b4b; --warn:#ef9f27; --warn-bg:#fdf3e0; --warn-text:#8a6116;
+  --border:rgba(26,29,33,.10); --radius:14px; --radius-s:10px; --line:#eef0f2;
+  --shadow-1:0 1px 3px rgba(16,40,30,.06);
+  --shadow-2:0 6px 20px rgba(16,40,30,.08);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:var(--text);line-height:1.6;-webkit-font-smoothing:antialiased}
+.doc{max-width:1080px;margin:0 auto;padding:32px 20px 80px}
+.doc-head h1{font-size:22px;font-weight:600}
+.doc-head p{color:var(--muted);font-size:13px;margin-top:6px;max-width:760px}
+.mode-switch{display:flex;gap:10px;margin:20px 0 24px}
+.mode-btn{padding:10px 22px;border:1px solid var(--border);border-radius:999px;background:var(--surface);font-size:14px;cursor:pointer;color:var(--text)}
+.mode-btn.on{background:var(--brand-2);border-color:var(--brand-2);color:#fff;font-weight:500}
+.hint{font-size:12px;color:var(--muted);margin-bottom:14px}
+/* 手机壳 */
+.stage{display:flex;justify-content:center}
+.phone{width:390px;height:780px;background:#101314;border-radius:46px;padding:10px;box-shadow:0 24px 64px rgba(0,0,0,.2)}
+.screen{position:relative;width:100%;height:100%;background:var(--bg);border-radius:36px;overflow:hidden;display:flex;flex-direction:column}
+.statusbar{display:flex;justify-content:space-between;padding:12px 24px 4px;font-size:12px;color:var(--text);flex:none;z-index:2}
+.navbar{display:flex;align-items:center;gap:8px;padding:8px 14px;min-height:44px;font-size:16px;font-weight:600;flex:none}
+.navbar .back{width:30px;height:30px;border:none;background:rgba(255,255,255,.9);border-radius:50%;font-size:17px;cursor:pointer;color:var(--text);box-shadow:var(--shadow-1)}
+.pages{flex:1;min-height:0;overflow-y:auto;position:relative;scrollbar-width:thin;scrollbar-color:rgba(16,40,30,.35) transparent}
+.pages::-webkit-scrollbar{width:6px}
+.pages::-webkit-scrollbar-track{background:transparent}
+.pages::-webkit-scrollbar-thumb{background:rgba(16,40,30,.35);border-radius:999px}
+.pages::-webkit-scrollbar-thumb:hover{background:rgba(16,40,30,.55)}
+.page{display:none;padding-bottom:20px}
+.page.on{display:block;animation:fadein .18s ease-out}
+@keyframes fadein{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+/* tabbar：文档流布局常驻显示，不悬浮遮挡内容；底部边距加大模拟安全区 */
+.tabbar{display:flex;background:#fff;border-top:1px solid var(--line);padding:8px 0 30px;flex:none;z-index:4;box-shadow:0 -2px 10px rgba(16,40,30,.04)}
+.tab{flex:1;text-align:center;font-size:10.5px;color:var(--muted);cursor:pointer;padding:4px 0;display:flex;flex-direction:column;align-items:center;gap:2px}
+.tab svg{width:22px;height:22px}
+.tab.on{color:var(--accent-deep);font-weight:500}
+/* 通用 */
+.card{background:var(--surface);border-radius:var(--radius);padding:16px;margin:0 14px 12px;box-shadow:var(--shadow-1)}
+.card h3{font-size:14px;font-weight:600;margin-bottom:10px}
+.row{display:flex;align-items:center;justify-content:space-between}
+.muted{color:var(--muted);font-size:12px}
+.small{font-size:12px}
+.num{font-variant-numeric:tabular-nums}
+.btn{display:block;width:calc(100% - 28px);margin:0 14px;padding:13px;border:none;border-radius:12px;background:var(--accent);color:#fff;font-size:15px;font-weight:500;cursor:pointer;text-align:center;font-family:inherit}
+.btn:disabled{background:#c8ccd2;cursor:not-allowed}
+.btn-ghost{background:#fff;border:1px solid var(--brand-3);color:var(--accent-deep);width:auto;margin:0;padding:6px 14px;font-size:13px;border-radius:999px}
+.tag{display:inline-block;padding:1px 8px;border-radius:6px;font-size:11px;background:#eef1f4;color:var(--muted);flex:none}
+.tag.ok{background:var(--accent-bg);color:var(--accent-deep)}
+.tag.warn{background:var(--warn-bg);color:var(--warn-text)}
+.tag.danger{background:#fcebeb;color:var(--danger)}
+.divider{height:1px;background:var(--line);margin:12px 0}
+.notice{display:flex;gap:10px;align-items:center;background:var(--warn-bg);border-radius:var(--radius-s);padding:11px 14px;font-size:12px;color:var(--warn-text);margin:0 14px 12px}
+.notice svg{width:16px;height:16px;flex:none}
+/* SVG 图标 */
+.ic{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.ic.s{width:16px;height:16px;stroke-width:1.8}
+.ic.l{width:26px;height:26px}
+/* 渐变头部（首页/我的/商城/工作台） */
+.hero{position:relative;padding:54px 18px 58px;background:linear-gradient(140deg,var(--brand-1),var(--brand-2) 55%,var(--brand-3));color:#fff}
+.hero .halo{position:absolute;right:-40px;top:-30px;width:180px;height:180px;border-radius:50%;background:rgba(255,255,255,.06)}
+.hero .halo.h2b{right:60px;top:70px;width:90px;height:90px}
+.store-bar{display:flex;align-items:center;gap:10px;cursor:pointer}
+.store-bar .ic{color:#fff}
+.store-bar .nm{flex:1;min-width:0}
+.store-bar .nm b{font-size:17px;font-weight:600;display:block}
+.store-bar .nm span{font-size:11px;opacity:.75}
+.switch-pill{display:flex;align-items:center;gap:3px;background:rgba(255,255,255,.16);border-radius:999px;padding:5px 12px;font-size:12px;flex:none}
+.hero .sub{font-size:12px;opacity:.8;margin-top:14px}
+/* 上浮卡 */
+.lift{margin-top:-40px;position:relative;z-index:2}
+/* 资产三栏（我的） */
+.assets3{display:flex}
+.assets3>div{flex:1;text-align:center;cursor:pointer;padding:4px 0}
+.assets3>div+div{border-left:1px solid var(--line)}
+.assets3 b{display:block;font-size:20px;font-weight:600;font-variant-numeric:tabular-nums}
+.assets3 b em{font-style:normal;font-size:12px;font-weight:400;color:var(--muted)}
+.assets3 span{font-size:11px;color:var(--muted)}
+/* 宫格 */
+.qgrid{display:grid;grid-template-columns:repeat(4,1fr);background:#fff;border-radius:var(--radius);margin:0 14px 12px;box-shadow:var(--shadow-1);padding:6px 0}
+.qgrid .q{display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 0;cursor:pointer;font-size:11.5px;color:var(--text)}
+.qgrid .q .qi{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center}
+.qgrid .q:nth-child(1) .qi{background:var(--accent-bg);color:var(--accent-deep)}
+.qgrid .q:nth-child(2) .qi{background:#e6f1fb;color:#185fa5}
+.qgrid .q:nth-child(3) .qi{background:var(--warn-bg);color:var(--warn)}
+.qgrid .q:nth-child(4) .qi{background:#f1edfb;color:#534ab7}
+/* 列表条目 */
+.cell{display:flex;align-items:center;gap:12px;padding:13px 16px;cursor:pointer}
+.cell+.cell{border-top:1px solid var(--line)}
+.cell .ci{width:32px;height:32px;border-radius:9px;background:#f4f6f8;display:flex;align-items:center;justify-content:center;color:var(--muted);flex:none}
+.cell .ct{flex:1;font-size:14px}
+.cell .ct small{display:block;font-size:11px;color:var(--muted)}
+.cell .ar{color:var(--muted)}
+/* 票券样式券卡 */
+.coupon{display:flex;background:#fff;border-radius:12px;margin:0 14px 10px;box-shadow:var(--shadow-1);overflow:hidden;position:relative;align-items:stretch}
+.coupon .amt{width:92px;flex:none;background:linear-gradient(160deg,var(--brand-2),var(--brand-3));color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14px 6px}
+.coupon .amt b{font-size:22px;font-weight:600;font-variant-numeric:tabular-nums}
+.coupon .amt b em{font-style:normal;font-size:13px}
+.coupon .amt span{font-size:10px;opacity:.8;margin-top:2px}
+.coupon .info{flex:1;padding:12px 14px;display:flex;flex-direction:column;justify-content:center;gap:2px;min-width:0}
+.coupon .info b{font-size:14px}
+.coupon .info .small{color:var(--muted)}
+.coupon .redeem{flex:none;display:flex;align-items:center;padding-right:14px}
+.coupon.off{opacity:.45}
+.coupon .perf{position:absolute;left:92px;width:14px;height:14px;border-radius:50%;background:var(--bg);transform:translateX(-7px)}
+.coupon .perf.t{top:-7px}.coupon .perf.b{bottom:-7px}
+/* tabs */
+.tabs{display:flex;gap:6px;margin:0 14px 12px;background:#fff;border-radius:12px;padding:4px;box-shadow:var(--shadow-1)}
+.tabs button{flex:1;padding:8px;border:none;border-radius:9px;background:none;font-size:13px;cursor:pointer;color:var(--muted);font-family:inherit}
+.tabs button.on{background:var(--accent-bg);color:var(--accent-deep);font-weight:500}
+/* 表单 */
+.field{margin-bottom:14px}
+.field label{display:block;font-size:13px;margin-bottom:6px}
+.field label .req{color:var(--danger)}
+.field input[type=text],.field input[type=number],.field input[type=search],.field textarea{
+  width:100%;padding:11px 12px;border:1px solid var(--border);border-radius:10px;font-size:14px;background:#fff;font-family:inherit}
+.field input:focus,.field textarea:focus{outline:2px solid rgba(7,193,96,.25);border-color:var(--accent)}
+.field .note{font-size:11px;color:var(--muted);margin-top:4px}
+.radios{display:flex;gap:8px;flex-wrap:wrap}
+.radios label{flex:1;min-width:96px;text-align:center;padding:11px 6px;border:1px solid var(--border);border-radius:10px;font-size:13px;cursor:pointer;margin:0;background:#fff}
+.radios input{display:none}
+.radios label.on{border-color:var(--accent);background:var(--accent-bg);color:var(--accent-deep);font-weight:500}
+/* 收银明细 */
+.line-item{display:flex;gap:8px;align-items:center;background:#fff;border:1px solid var(--border);border-radius:12px;padding:10px;margin-bottom:8px}
+.line-item input{border:1px solid var(--border);border-radius:8px;padding:7px 9px;font-size:13px;font-family:inherit;background:#fbfcfd}
+.line-item .li-name{flex:1.2;min-width:0}
+.line-item .li-price{width:74px}
+.line-item .li-qty{width:52px}
+.line-item .li-sum{width:62px;text-align:right;font-variant-numeric:tabular-nums;font-size:14px;font-weight:600;flex:none}
+.line-item .li-del{border:none;background:none;color:var(--muted);font-size:16px;cursor:pointer;padding:2px 4px}
+.addline{width:100%;padding:10px;border:1px dashed var(--border);border-radius:12px;background:none;color:var(--accent-deep);font-size:13px;cursor:pointer;margin-bottom:12px;font-family:inherit}
+.calc{background:#fff;border-radius:var(--radius);padding:14px 16px;margin:0 14px 12px;box-shadow:var(--shadow-1)}
+.calc .crow{display:flex;justify-content:space-between;font-size:13px;padding:3px 0}
+.calc .crow b{font-variant-numeric:tabular-nums}
+.calc .crow.total{font-size:15px;font-weight:600;border-top:1px solid var(--line);margin-top:8px;padding-top:10px}
+/* 选择条 */
+.pick{border:1.5px solid var(--border);border-radius:12px;padding:11px 13px;margin-bottom:8px;cursor:pointer;background:#fff;display:flex;gap:10px;align-items:center}
+.pick.on{border-color:var(--accent);background:#f6fcf9}
+.pick.off{opacity:.5;cursor:not-allowed;background:#fafafa}
+.pick .radio{width:17px;height:17px;border-radius:50%;border:1.5px solid var(--border);flex:none}
+.pick.on .radio{border-color:var(--accent);background:radial-gradient(circle at center,#fff 3.5px,var(--accent) 4.5px)}
+/* 列表行 */
+.list-row{background:#fff;border-radius:12px;padding:12px 14px;margin:0 14px 8px;box-shadow:var(--shadow-1)}
+.list-row .t{font-size:13px;font-weight:500}
+.search-bar{display:flex;gap:8px;margin:0 14px 12px}
+.search-bar input{flex:1;padding:11px 12px;border:1px solid var(--border);border-radius:12px;font-size:14px;font-family:inherit}
+/* 工作台宫格 */
+.wgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:0 14px}
+.wgrid .w{background:#fff;border-radius:16px;padding:20px 16px;cursor:pointer;box-shadow:var(--shadow-1);display:flex;flex-direction:column;align-items:flex-start;gap:10px}
+.wgrid .w .wi{width:44px;height:44px;border-radius:13px;display:flex;align-items:center;justify-content:center}
+.wgrid .w b{font-size:14px;font-weight:600}
+.wgrid .w span{font-size:11px;color:var(--muted)}
+/* 弹层 */
+.modal-mask{position:absolute;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:9}
+.modal-mask.on{display:flex}
+.modal{background:#fff;border-radius:16px;width:82%;padding:22px 18px}
+.modal h3{font-size:15px;margin-bottom:10px;text-align:center}
+.modal p{font-size:13px;color:var(--muted);text-align:center}
+.modal .ops{display:flex;gap:10px;margin-top:18px}
+.modal .ops .btn{width:auto;flex:1;margin:0;padding:11px}
+.btn-gray{background:#eef1f4;color:var(--text)}
+.toast{position:absolute;left:50%;top:38%;transform:translateX(-50%);background:rgba(17,24,20,.82);color:#fff;padding:12px 20px;border-radius:12px;font-size:13px;display:none;z-index:10;white-space:nowrap;max-width:88%}
+.toast.on{display:block;animation:fadein .2s ease-out}
+.mode-tag{position:absolute;top:10px;right:14px;z-index:5;font-size:10.5px;background:rgba(0,0,0,.35);color:#fff;padding:3px 10px;border-radius:999px}
+.foot-note{font-size:11px;color:var(--muted);text-align:center;margin-top:14px;padding:0 20px}
+.success-ic{width:64px;height:64px;border-radius:50%;background:var(--accent-bg);color:var(--accent-deep);display:flex;align-items:center;justify-content:center;margin:56px auto 14px}
+</style>
+</head>
+<body data-page-node-id="rigeYGl09HjJpL3yUugJjZ">
+<!-- SVG 图标库 -->
+<svg width="0" height="0" style="position:absolute" data-page-node-id="FW8JB5pZxdCXG92idKs4gb">
+  <defs data-page-node-id="lA43jnhcCi4j2RvLdx3F5s">
+    <symbol id="i-home" viewBox="0 0 24 24" data-page-node-id="4GRZaYFsBVoFfIPITSm9uH"><path d="M4 11.5 12 4l8 7.5" data-page-node-id="pMNUNQP3bbVS4fJdQxOqpq"/><path d="M6 10v9h12v-9" data-page-node-id="UI5nwwL9xMcFgKMivANbqA"/><path d="M10 19v-5h4v5" data-page-node-id="5v5YS68pxFUN7Fp06kfztZ"/></symbol>
+    <symbol id="i-gift" viewBox="0 0 24 24" data-page-node-id="EEQUxmvPKeWJZ7vKgmhxJg"><rect x="4" y="9" width="16" height="11" rx="2" data-page-node-id="ctYufsSCqTHF41UtpXrJaB"/><path d="M4 13h16M12 9v11" data-page-node-id="NMsUc2ovwIhmYmDleTQ6rX"/><path d="M12 9c-1.5 0-4-.6-4-2.7C8 4.6 9.3 4 10.2 4c1.6 0 1.8 2.7 1.8 5zm0 0c1.5 0 4-.6 4-2.7C16 4.6 14.7 4 13.8 4 12.2 4 12 6.7 12 9z" data-page-node-id="SISngrIsTtoJDCFBKPOipr"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24" data-page-node-id="E7oKBDYNdYVp6Wg8vaAzVu"><circle cx="12" cy="8" r="3.5" data-page-node-id="AunROOl6o4cXVSg23huEej"/><path d="M5 20c1-3.5 3.8-5 7-5s6 1.5 7 5" data-page-node-id="dtmXlPvjqI22HyAlGMJ3EU"/></symbol>
+    <symbol id="i-ticket" viewBox="0 0 24 24" data-page-node-id="PykqiRtg8g1BVCNjQEmf45"><path d="M4 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4z" data-page-node-id="U7Avs7Cn6kxnC7UcJZwyCL"/><path d="M13 7v10" stroke-dasharray="2.4 2.6" data-page-node-id="4bzBly1oiFLjdvwAJ7cW0d"/></symbol>
+    <symbol id="i-store" viewBox="0 0 24 24" data-page-node-id="cXVNL9xvrestmKDxyTzPPb"><path d="M4 9.5 5.5 4h13L20 9.5" data-page-node-id="SdR2J99HUtG7JKqft5zqi5"/><path d="M4 9.5a2.3 2.3 0 0 0 4.5.6 2.3 2.3 0 0 0 4.5 0 2.3 2.3 0 0 0 4.5 0 2.3 2.3 0 0 0 2.5-.6" data-page-node-id="kqbV5dy11L1yVe37hhu5Ru"/><path d="M5 12v8h14v-8M9.5 20v-5h5v5" data-page-node-id="GNjrktPwDlh5v4Ij7vLsIm"/></symbol>
+    <symbol id="i-scan" viewBox="0 0 24 24" data-page-node-id="olEpHoUIKFJn55IY5dA9Du"><path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16M7 12h10" data-page-node-id="DuHx80LUwVABhPfM9S0On3"/></symbol>
+    <symbol id="i-wallet" viewBox="0 0 24 24" data-page-node-id="zkP5kVATvGVa8Hj9MdOQc5"><rect x="3.5" y="6.5" width="17" height="13" rx="2.5" data-page-node-id="TL57tECdA1yIGZqBh1H2nx"/><path d="M3.5 10h17M16.5 15h2" data-page-node-id="R9NKznroSeGtiXAf9QGYc9"/></symbol>
+    <symbol id="i-point" viewBox="0 0 24 24" data-page-node-id="w5AQNpNVnLL3VOQpydSN8Y"><circle cx="12" cy="12" r="8" data-page-node-id="K52d2KFWaYloUNCgx3Yhli"/><path d="M12 8.2l1.1 2.3 2.5.3-1.9 1.7.5 2.5-2.2-1.3-2.2 1.3.5-2.5-1.9-1.7 2.5-.3z" data-page-node-id="FBOibRlUgJ8q5FiGQwGKcP"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24" data-page-node-id="V1Go99Jd9BeY3Ej5Z9BEHc"><path d="M8 6h12M8 12h12M8 18h12" data-page-node-id="ZnJkSthCAgHVvBzGKCGGmq"/><circle cx="4.2" cy="6" r="1" data-page-node-id="pbxqFG876uuHs7exLGtTti"/><circle cx="4.2" cy="12" r="1" data-page-node-id="qen39XPS97lUPZFnWBLlAf"/><circle cx="4.2" cy="18" r="1" data-page-node-id="buf3C0pD5Ua5T8mN1YPo5c"/></symbol>
+    <symbol id="i-cashier" viewBox="0 0 24 24" data-page-node-id="sKV9WkNE0lxQxgKYxSjWZP"><path d="M6 3h12l1.5 5H4.5z" data-page-node-id="of0KEqFsaFAHGafBUZnxTi"/><path d="M5 8v11a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8M9 12h6M9 16h6" data-page-node-id="AHhFhRIHtxNLzSOQivm4tL"/></symbol>
+    <symbol id="i-chart" viewBox="0 0 24 24" data-page-node-id="60Rl02anChmjPVcilbCUJ6"><path d="M4 20h16" data-page-node-id="AblsWWKecKAVuTKsZQNpmV"/><rect x="6" y="11" width="3" height="6" rx="1" data-page-node-id="2P3nsMdzKDJq6V8qL7ELYR"/><rect x="11" y="7" width="3" height="10" rx="1" data-page-node-id="JxnCsogm38QZq1LHAhuta4"/><rect x="16" y="13" width="3" height="4" rx="1" data-page-node-id="FjwSWtwEl5b1EzHmAcTWK1"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24" data-page-node-id="egQQjS02cfSdZU61YhmqNE"><circle cx="11" cy="11" r="6.5" data-page-node-id="R1Xdqx3UJtFIFspAO9PPKz"/><path d="M16 16l4.5 4.5" data-page-node-id="cJ1ENS4mCJCnGwsMMjojxx"/></symbol>
+    <symbol id="i-recharge" viewBox="0 0 24 24" data-page-node-id="fOu7BnMSM9Qai6ZyCB4qts"><circle cx="12" cy="12" r="8.5" data-page-node-id="r0tWnEgxp439tEG0d3ykNq"/><path d="M12 8v8M8 12h8" data-page-node-id="NVwHMtGqNaDAnIWxvVmUcI"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24" data-page-node-id="5YbdvCP46wkHnsClzJoB33"><path d="M5 12.5l4.5 4.5L19 7.5" data-page-node-id="yAwgRCPRnh0mNkVNHA60LA"/></symbol>
+    <symbol id="i-card" viewBox="0 0 24 24" data-page-node-id="iGmB5TC5BBDJDEzCgaaAmp"><rect x="3.5" y="5.5" width="17" height="13" rx="2.5" data-page-node-id="P76o0UeGjQ62YUMhGuvF5K"/><path d="M7 15h4" data-page-node-id="UCvxXvCAxBlcxvF7FGBmv5"/></symbol>
+    <symbol id="i-arr" viewBox="0 0 24 24" data-page-node-id="OqfcdEzidLeREUsMXfCdXx"><path d="M9.5 6l6 6-6 6" data-page-node-id="c4kfaysDLcLMp9H7kAbdOj"/></symbol>
+  </defs>
+</svg>
+
+<div class="doc" data-page-node-id="wa5w7gKgxMAnbnqY7lFguD">
+  <div class="doc-head" data-page-node-id="5bnLiCL9Y7DO5bd9NhkRhG">
+    <h1 data-page-node-id="CygCR2OTgGx1dtuk4oumid">store-ops 小程序原型（低保真 v3 · 可交互）</h1>
+    <p data-page-node-id="EN0uoZJPOyiWLnHWwIzh5B">对应 PRD v1.0 · 5.1 会员 / 5.2 积分兑券 / 5.3 收银。顾客端仅两个 tab：会员中心（店名、余额、积分、入口；员工多工作台入口）+ 积分商城。示例数据仅供流程演示。</p>
+  </div>
+
+  <div class="mode-switch" data-page-node-id="sUjkVx47a4Zs2yzkgJBCv9">
+    <button class="mode-btn on" id="modeCust" onclick="setMode('cust')" data-page-node-id="D5nbGBavNcE8KbCPHw8XOC">① 顾客视角</button>
+    <button class="mode-btn" id="modeStaff" onclick="setMode('staff')" data-page-node-id="b68y8IpjOM7DzfpsgeVCEP">② 商家工作台</button>
+  </div>
+  <p class="hint" data-page-node-id="cVzNE35k6p0ZojWo8PpeEW">顾客端也可以走「会员中心 → 商家工作台」进入工作台；右上角胶囊提示当前身份。</p>
+
+  <div class="stage" data-page-node-id="c3VpOADCdrkl1uugf4ijWZ">
+    <div class="phone" data-page-node-id="RHVRfxhocHpxOpAll4FLUM">
+      <div class="screen" data-page-node-id="pmIqvQXjEfAiUXHVvzwGIO">
+        <span class="mode-tag" id="modeTag" data-page-node-id="XEGv2QVAWyg6pz6FCZBJ2F">顾客视角</span>
+        <div class="statusbar" data-page-node-id="3nc293QaBnam4JUjR3EhHL"><span id="clock" data-page-node-id="sVH8Ykl9EoMIkAm2VZSi1g">12:10</span><span data-page-node-id="t1D0FunsD88MiYL2kCRBff">●●●●● 5G ▮</span></div>
+
+        <!-- 滚动容器：所有 page 在其内部滚动，tabbar 在容器外常驻 -->
+        <div class="pages">
+
+        <!-- ============ 会员中心（店名/余额/积分/入口，员工多工作台） ============ -->
+        <div class="page on" id="p-home" data-tab="home" data-page-node-id="HRw4x7IFjpmA62FXeZXjDX">
+          <div class="hero" data-page-node-id="mQTRM14912cclKAArgV6Ru">
+            <span class="halo" data-page-node-id="cTbqE0eoEmWVWTcZzvvCEV"></span><span class="halo h2b" data-page-node-id="ODyRT7QRPihFHRRldcU1Gb"></span>
+            <div class="store-bar" onclick="go('p-stores')" data-page-node-id="oYa4SHJFQUG0xcpFmrxuy1">
+              <svg class="ic" data-page-node-id="FDQRNYGBjlEujw5zGzR31c"><use href="#i-store" data-page-node-id="u04T4dMO0GVZ1TFIsGYvkG"/></svg>
+              <div class="nm" data-page-node-id="1mObjQhPbWCmPtOkZx7PLH"><b data-page-node-id="RsAnFomkyWwSZcoRc5t0Ld">轻语美发 · 佛山禅城店</b><span data-page-node-id="6BWSjzOokSKDGLQSPXh7tD">营业中 10:00–21:00 · 上次消费 2 小时前</span></div>
+              <span class="switch-pill" data-page-node-id="vndD9gP7lw84oxh20awgwJ">切换 <svg class="ic s" style="width:12px;height:12px" data-page-node-id="3CYA4Azh85B4VFgKXyKJu8"><use href="#i-arr" data-page-node-id="pbOu7gqZN3jFma50kbysXA"/></svg></span>
+            </div>
+            <div class="sub" style="display:flex;align-items:center;gap:10px" data-page-node-id="Ij4WFMnjTDq4Cf7BCIfzmr">
+              <div style="width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;flex:none" data-page-node-id="9EPRofNsqrHQiElBv6XRGv"><svg class="ic" style="width:22px;height:22px;color:#fff" data-page-node-id="tM1QJsmiYuublxp0IDPDRN"><use href="#i-user" data-page-node-id="1lkfxpITQFMwWCugno4pZH"/></svg></div>
+              <div data-page-node-id="Qq0qaSiDP9NlcXolnOYNRl">王女士 · 138****6688<br data-page-node-id="JKhTDNf7npuDlWjcoRCiib">会员卡号 8800 0021</div>
+            </div>
+          </div>
+
+          <div class="card lift" data-page-node-id="riSTgZwOsfHlIwFx7lZOAa">
+            <div class="assets3" data-page-node-id="bX8NVO4nItDKydP7dpW8BT">
+              <div onclick="toast('充值到店办理 · 当前余额 ¥196.50')" data-page-node-id="q9GuX6XdZ3FCgpzW4UPUqD"><b class="num" data-page-node-id="qF8JFMIQyWA0FfITdUxxnb">196.50<em data-page-node-id="8VDL6mCbGIzrXVtTPznD4V"> 元</em></b><span data-page-node-id="NJrm5UgWyq3O3XtDf6sgOr">余额</span></div>
+              <div onclick="goTab('mall')" data-page-node-id="XeixYJZBGYsBNpr46XP4RN"><b class="num" data-page-node-id="KL0F8m48k3WMBhEldUOMnz">86.50</b><span data-page-node-id="sAvmSNsSLzAwJysxv9hNFS">积分</span></div>
+              <div onclick="go('p-coupons')" data-page-node-id="K94tCcfJwOU8VUZkccSZVr"><b data-page-node-id="6xsgdt8GXIcwaiNFEqiBGI">3<em data-page-node-id="cq3WMipuD4UoxEJjD8FHKn"> 张</em></b><span data-page-node-id="gmG9Zzv6hMaT1UvBAq0kww">优惠券</span></div>
+            </div>
+          </div>
+
+          <div class="notice" onclick="toast('充值活动：到店告知店员，线下收款后确认到账（PRD 5.1.2）')" style="cursor:pointer;margin-top:0" data-page-node-id="ZpoN23jITKXt38ffH9YLie">
+            <svg class="ic s" data-page-node-id="32v5eZPbio3yGjxAfHHOsi"><use href="#i-gift" data-page-node-id="ZvOs2jULynGeQXuCAuiUBY"/></svg>
+            <span data-page-node-id="mgfGlmGsWxiYbjnEMrZTIk">充值活动进行中：充 100 送 10 · 到账 110 元 —— 到店办理，余额即时到账</span>
+          </div>
+
+          <div class="card" style="padding:4px 0" data-page-node-id="u5cGJ5PjxiLf91GhjwqmCM">
+            <div class="cell" onclick="go('p-coupons')" data-page-node-id="5ncjoStNPC6KpbyKFPdTUZ"><span class="ci" data-page-node-id="kuoLMxDanmsZSSOCZoV126"><svg class="ic s" data-page-node-id="RUIvLCt7Nba9KWXmSFLwrt"><use href="#i-ticket" data-page-node-id="o11vGIpROqo06mcs6WpMzy"/></svg></span><span class="ct" data-page-node-id="uDM78fWbNq63XM0Ui1mObM">我的优惠券<small data-page-node-id="vHUEUWd012YltjymI4xVq1">3 张可使用 · 1 张 10-25 到期</small></span><span class="ar" data-page-node-id="53XMDy5l7TCCaY4hLvKFKH"><svg class="ic s" data-page-node-id="HGZne982ICYIABCu4yH4gQ"><use href="#i-arr" data-page-node-id="dgkKD8e5ecnh8nvj1o4f7R"/></svg></span></div>
+            <div class="cell" onclick="go('p-orders-c')" data-page-node-id="LF8caDuuwNkZySzwD2ziXq"><span class="ci" data-page-node-id="4Fe1iO7tD7Ti29faR3gQtm"><svg class="ic s" data-page-node-id="JivkrghnQP6zC0pr3UWi2s"><use href="#i-list" data-page-node-id="394G8YePjBW2SBYGi1cG9R"/></svg></span><span class="ct" data-page-node-id="eVTZfQS77ySlk4uPhKaE0O">消费记录<small data-page-node-id="bBFgAKTZVFm5FJWu7m8XGg">累计消费 12 次</small></span><span class="ar" data-page-node-id="g6kesptZEVe2pEnRvKATea"><svg class="ic s" data-page-node-id="Qht6yEpInSQNqJMjyBHSGE"><use href="#i-arr" data-page-node-id="2lf8ScPC7xFaqVNmePeiO3"/></svg></span></div>
+            <div class="cell" onclick="toast('充值记录：09-10 充100送10 · 到账¥110 · 微信收款')" data-page-node-id="VsQCr127MdapP3RNEMNKdQ"><span class="ci" data-page-node-id="m5mfHCERRihh8aBoDRvgXC"><svg class="ic s" data-page-node-id="apNYDFVcOJxSywQCYsAPR6"><use href="#i-wallet" data-page-node-id="AVaGWiLBAjBWagmV1QJ2UH"/></svg></span><span class="ct" data-page-node-id="Df5gfFZT94dHzgKNZD2P0t">充值记录</span><span class="ar" data-page-node-id="FjG8jVpN8kY2oiGTz4JFJ6"><svg class="ic s" data-page-node-id="Kj6zv6OgIASQjGd1D9KA1W"><use href="#i-arr" data-page-node-id="5LjjCZCom8AgqRyKigEdgn"/></svg></span></div>
+            <div class="cell" onclick="go('p-stores')" data-page-node-id="i24xSPxncDYsbzx19EC0xx"><span class="ci" data-page-node-id="vylrkuDodtlcm8TEV39LpM"><svg class="ic s" data-page-node-id="T1xtcPmetRKckgG3l50HL1"><use href="#i-store" data-page-node-id="sp7MNaamsaQUJbWT9a1GDj"/></svg></span><span class="ct" data-page-node-id="jNJm42OcwioY9te1b91TAx">切换门店<small data-page-node-id="DmrfQQfA4XsTQWXq57FsKB">仅显示已注册会员的门店</small></span><span class="ar" data-page-node-id="QQxHvatgqpHoYBRjEGtihm"><svg class="ic s" data-page-node-id="J0PIC4Nf3C0Dm8JLeMhRTl"><use href="#i-arr" data-page-node-id="P12BiI0hHG6OopNBkTKLzQ"/></svg></span></div>
+          </div>
+
+          <div class="card" style="cursor:pointer" onclick="setMode('staff')" data-page-node-id="cbiKtPKwX9ZLZebCMtZhmf">
+            <div class="cell" style="padding:4px 0" data-page-node-id="kQR1owjbXjGMivToFGq5Cb">
+              <span class="ci" style="background:var(--accent-bg);color:var(--accent-deep)" data-page-node-id="bsDCgRxXMnN3yJgX4TKIhZ"><svg class="ic s" data-page-node-id="21YFTOEl0fQsqObIfJ8qik"><use href="#i-cashier" data-page-node-id="ZyyamNVgZeBoCVi2Gv8dSx"/></svg></span>
+              <span class="ct" data-page-node-id="dsjaDfSNydlXDH66U3WdnE">商家工作台<small data-page-node-id="KaLchCRQcJS8xuEcLfuoUP">您已绑定员工身份 · 收银 / 充值 / 查询</small></span>
+              <span class="ar" data-page-node-id="2pjrhHQxLWn9az7Nr0AGu8"><svg class="ic s" data-page-node-id="ugREyRK6CFIgXxkA3mnZwS"><use href="#i-arr" data-page-node-id="5ugaJ9iKKFCVKC4HrJn0wc"/></svg></span>
+            </div>
+          </div>
+          <p class="foot-note" data-page-node-id="hYsXAtX8dpunmReLdzAFqP">工作台入口仅绑定员工身份的会员可见 · 门店列表仅展示已注册门店</p>
+        </div>
+
+        <!-- 消费记录（顾客端） -->
+        <div class="page" id="p-orders-c" data-page-node-id="xsb460r6C2Q3DY79iRpFSi">
+          <div class="navbar" style="margin-bottom:10px" data-page-node-id="pBOg2IjcNuwOpiigof8F9K"><button class="back" onclick="go('p-home')" data-page-node-id="PuLNJKwhraa5CINzEW5NvR">‹</button>消费记录</div>
+          <div class="list-row" data-page-node-id="iRQrfDoGABvAucnDbCpP9m">
+            <div class="row" data-page-node-id="pAHt9Ghm5Yf1NesgWRxxrA"><span class="t" data-page-node-id="FQsrrdmZweOKIFL8riFRc9">洗剪吹 ×1</span><b class="num" data-page-node-id="DBCmzlJtf5FIooo3QFQNny">¥46.40</b></div>
+            <div class="muted" data-page-node-id="1mXHr213MhLydWYj7yyEMk">09-25 10:32 · 余额收款 · 8折券抵 ¥11.60 · 攒 46.40 积分</div>
+          </div>
+          <div class="list-row" data-page-node-id="ieVOiHxmlA8DKG4FguWWDj">
+            <div class="row" data-page-node-id="EDvwuMasQ3mUo2FN92cyGA"><span class="t" data-page-node-id="rGFaOmzExFpNxSCJBzOlBS">护理套餐 ×1</span><b class="num" data-page-node-id="lP1lC5lLb3jBzU2zSfkxTj">¥88.00</b></div>
+            <div class="muted" data-page-node-id="yfO8VNL6pqCsRcYppBMDSF">09-21 15:20 · 支付宝收款 · 攒 88.00 积分</div>
+          </div>
+          <div class="list-row" data-page-node-id="HG00VJ7yoFemfb4pmzQ8xS">
+            <div class="row" data-page-node-id="vlHWeicu7Bxeh1PqPpUQCy"><span class="t" data-page-node-id="gFEHA7UVT1oMxw2nk61NVV">染发 ×1</span><b class="num" data-page-node-id="Y3oV6z25cFc9D6x90A7xiL">¥128.00</b></div>
+            <div class="muted" data-page-node-id="2IrYUDAHy094tm7bTgaSjX">09-15 11:08 · 现金收款 · 攒 128.00 积分</div>
+          </div>
+        </div>
+
+        <!-- 门店切换 -->
+        <div class="page" id="p-stores" data-page-node-id="q0WtjV4MhtGlibEW5L8r9a">
+          <div class="navbar" style="margin-bottom:10px" data-page-node-id="IxGYr9O8Fze22rFmmAM3Oi"><button class="back" onclick="go('p-home')" data-page-node-id="9w2LXLlMpGbRdecJEfJDtY">‹</button>切换门店</div>
+          <div class="card" style="cursor:pointer;border:1.5px solid var(--accent)" onclick="toast('已切换到当前门店')" data-page-node-id="IK5Yv9XTUTKhh9DwbLVThh">
+            <div class="row" data-page-node-id="OxwcXi8xq8q8xeDJdizFhF"><b class="small" data-page-node-id="hixPiCFQFRoJycfLRBhrFy">轻语美发 · 佛山禅城店</b><span class="tag ok" data-page-node-id="KP7Ek1WjdThg5pPm2WaxAV">当前</span></div>
+            <div class="muted" data-page-node-id="FNjuHpnVaBQmed2ZegxJDk">最近消费：今天 10:32 · 该店余额 ¥196.50 · 积分 86.50</div>
+          </div>
+          <div class="card" style="cursor:pointer" onclick="toast('已切换：各店资产独立，不互通')" data-page-node-id="2GxD8y1iJWhXxmHIzUUkAO">
+            <div class="row" data-page-node-id="D4oQiDZtwX9FdEnsTP33qN"><b class="small" data-page-node-id="PlsgCHHOaI8lrEVgg2dKBe">轻语美发 · 广州天河店</b><span class="tag" data-page-node-id="8His7jlmsqj88MCgmrRIQu">最近消费 09-02</span></div>
+            <div class="muted" data-page-node-id="SPLgpnhB5JjcvdVL2tkPzH">该店余额 ¥60.00 · 积分 20.00（各店独立）</div>
+          </div>
+          <div class="notice" data-page-node-id="DMk6cgvfBqBoI57gFAypth"><svg class="ic s" data-page-node-id="8nmAiXCPVRXSMZQjGwkQuR"><use href="#i-scan" data-page-node-id="73pCFKb7oh7GW0HegRDHKz"/></svg><span data-page-node-id="LVG0A1cf4llFc1FxeCWYnb">进入未注册的新门店：请扫该店小程序码，首次使用会员功能时确认手机号自动建档</span></div>
+        </div>
+
+        <!-- ============ 积分商城 ============ -->
+        <div class="page" id="p-mall" data-tab="mall" data-page-node-id="AZNPBZOMftBRnkBRHQ1BMy">
+          <div class="hero" style="padding:54px 18px 46px" data-page-node-id="QVJx8ZBYZUzY0F6NovbJk2">
+            <span class="halo" data-page-node-id="DzoJgyl8iPiMn7RWMfmtbF"></span>
+            <div style="font-size:15px;font-weight:600" data-page-node-id="J9U17S426OCFffMwU0mhdQ">积分商城</div>
+            <div class="sub" data-page-node-id="mILqxgK3W39rjd8VXXDMC1">轻语美发 · 佛山禅城店</div>
+            <div style="font-size:34px;font-weight:600;margin-top:6px" class="num" data-page-node-id="j8aubGmx5w8k43mw4usZMN">86.50<small style="font-size:13px;font-weight:400;opacity:.75" data-page-node-id="Al9wvTGs6vGBnD7YDNVP7v"> 积分</small></div>
+          </div>
+          <div class="coupon lift" data-page-node-id="TlComPZdn7AW0luuTxhw73">
+            <span class="perf t" data-page-node-id="znyQYk0KzW5573tSkMkwSM"></span><span class="perf b" data-page-node-id="HpYov3xHgDC1oIciV4MAr9"></span>
+            <div class="amt" data-page-node-id="cYJeTvxQHDcRFabxFPEE83"><b data-page-node-id="qGHblMnvy9jI4MM83SqUuS">¥10</b><span data-page-node-id="oMGVXGY8hBchCp2YXT7Erv">满 50 可用</span></div>
+            <div class="info" data-page-node-id="ZchzA6ADTP9Hevw2TXKYIF"><b data-page-node-id="cTE5X3VqW8Co5CmJ4FRzGL">满减券</b><div class="small" data-page-node-id="OhrIHf24h5nP7wyZWlxU5y">有效期：兑换后 30 天</div></div>
+            <div class="redeem" data-page-node-id="Vw1XPUrdeG1DXmh8jrq0Qm"><button class="btn btn-ghost" onclick="askRedeem('满 50 减 10 优惠券',30)" data-page-node-id="8zHXFoBfHuehN0moQN4PbB">30 积分</button></div>
+          </div>
+          <div class="coupon" data-page-node-id="I8HCVYctJB4sDkhpQNQ7kO">
+            <span class="perf t" data-page-node-id="KXuxJh4gcaDjrQVqcm4jnX"></span><span class="perf b" data-page-node-id="S1Z6yVqZAoKGbCrh6HVrA6"></span>
+            <div class="amt" data-page-node-id="OwZEJthgthbpwCFMh7yfXQ"><b data-page-node-id="GhSCWYoR3SEzjhmVanj8Kd">8<em data-page-node-id="90XWxF6GbF9fL6brZ56dBh">折</em></b><span data-page-node-id="zqI8w85FI2jTscklC4wRr4">封顶 ¥30</span></div>
+            <div class="info" data-page-node-id="dwNlmih3oadQeQI9VNHWcY"><b data-page-node-id="HHjhjdJuGKBfVYoA3FAW1L">折扣券</b><div class="small" data-page-node-id="6QQpkBHWLWNRLm6nqFSTaM">无门槛 · 兑换后 30 天</div></div>
+            <div class="redeem" data-page-node-id="COaF7ZPF9anIeq7wfAqkHY"><button class="btn btn-ghost" onclick="askRedeem('8 折券（封顶 30 元）',50)" data-page-node-id="c28LqyCTUO7cFqIjbSL53k">50 积分</button></div>
+          </div>
+          <div class="coupon off" data-page-node-id="IZNAU3cLP3SGrcL1nAI5DY">
+            <span class="perf t" data-page-node-id="UVCBdWDIu7HQTagdHo1sbZ"></span><span class="perf b" data-page-node-id="dXeEKYspkbkTzssPJWcMYF"></span>
+            <div class="amt" data-page-node-id="xjmg2CvfZ0859SRwCEzvma"><b data-page-node-id="WoNmCnCobPwptGC1Dnu0DS">¥20</b><span data-page-node-id="WIz2ghWJsfEv6rJsqAsI0W">满 100 可用</span></div>
+            <div class="info" data-page-node-id="8KRuzS8IX3MEkBfkQF9DDS"><b data-page-node-id="FKTTtaWi0KOpOCX0ChTGtA">满减券</b><div class="small" data-page-node-id="5HAAEYAPB9Oy0SOfp9OP70">积分不足，还差 3.50</div></div>
+            <div class="redeem" data-page-node-id="DxoPFtPjwdFBTVwSCBKOT8"><button class="btn" disabled style="width:auto;margin:0;padding:6px 14px;font-size:13px;border-radius:999px" data-page-node-id="3QwrgMxVe6yKscrRjuzlFA">60 积分</button></div>
+          </div>
+          <div class="card small muted" style="display:flex;gap:8px" data-page-node-id="dVaG1fWADwmxzGk5ytFJez"><svg class="ic s" style="margin-top:3px" data-page-node-id="4CPHEUPxDjKRh2WphcIp1E"><use href="#i-point" data-page-node-id="uoGZIzwEsjjjwKpFdUdvTr"/></svg><span data-page-node-id="w1OvVuSYuDDzcvnDGtXqGq">兑换即时扣积分，不支持退券回积分；过期不退。每张券规则由本店配置（门店级资产）。</span></div>
+        </div>
+
+        <!-- 我的优惠券 -->
+        <div class="page" id="p-coupons" data-page-node-id="l7sGzcUwUrtC7wazhj67MQ">
+          <div class="navbar" style="margin-bottom:10px" data-page-node-id="qx2HbuuxusYArP3qbgyQMx"><button class="back" onclick="go('p-home')" data-page-node-id="093HVRLso9IpVtltdpgleZ">‹</button>我的优惠券</div>
+          <div class="tabs" data-page-node-id="vZzTPjeO3CSa0pO5P3J93r">
+            <button class="on" onclick="coupTab(this,'usable')" data-page-node-id="7Td1gcjxQOWHlL6mCKIbST">未使用 (3)</button>
+            <button onclick="coupTab(this,'used')" data-page-node-id="J09kZBJD7dvFk85vwzyQda">已使用</button>
+            <button onclick="coupTab(this,'expired')" data-page-node-id="oEQk2mSSYUdN7bNFTSsHFU">已过期</button>
+          </div>
+          <div data-ctab="usable" data-page-node-id="PnFnc6XzPryM8waG8SrQYL">
+            <div class="coupon" data-page-node-id="dVVwKVtdIekxpFO3gO1mqp"><span class="perf t" data-page-node-id="sw1iGVZUYFMaUzN2ESQ20G"></span><span class="perf b" data-page-node-id="677uPXunvB8Fhk6jAZ0Ogn"></span><div class="amt" data-page-node-id="9GHWFhL4vNOc4to0O5yohl"><b data-page-node-id="OZg1QknkGSmAoQccqkEicE">¥10</b><span data-page-node-id="8cL793a1iDyYfSEcNfJKg6">满 50 可用</span></div><div class="info" data-page-node-id="ut3EdgU24iUEMTmHzU2Srn"><b data-page-node-id="7uC7fjKZLWRdr8DOaEKAjK">满减券</b><div class="small" data-page-node-id="notvlyJetGgZFTUps3DZ5j">2026-10-25 到期</div></div><div class="redeem" data-page-node-id="Wkxpc0Fkjt9bii6vnEyZW2"><span class="tag ok" data-page-node-id="yUcFzbezyJ6yxzSWhS8zim">未使用</span></div></div>
+            <div class="coupon" data-page-node-id="c8DeQG0zkG7brAnHD4U2BL"><span class="perf t" data-page-node-id="aIVYUBULldVcZBoNcF3mTg"></span><span class="perf b" data-page-node-id="0MPpzWsDIDeTYMmsFN9UpX"></span><div class="amt" data-page-node-id="qe26HwN6GOwmGrFCdn8Mb0"><b data-page-node-id="1rxFTtjglgQ7jkczpN4XG8">8<em data-page-node-id="t6iydto9DMaqNCYz8R8sgx">折</em></b><span data-page-node-id="HWRf2I4x3fgrOqnte31Ie2">封顶 ¥30</span></div><div class="info" data-page-node-id="7obdwDz0h9S3W9bDGDs4mV"><b data-page-node-id="ZpcKeK2uwUesYYXIsicHse">折扣券</b><div class="small" data-page-node-id="IuFhFeyogUQBppl7AjuazG">2026-10-12 到期</div></div><div class="redeem" data-page-node-id="TAAPPWlTel8s1pcD6pr0MQ"><span class="tag ok" data-page-node-id="QGnYOzy2nCXrQmfbLIrZLz">未使用</span></div></div>
+            <div class="coupon" data-page-node-id="Yq9ApwTD16DopgyFt4WqaK"><span class="perf t" data-page-node-id="M8RoSNwpcFl4Zub394olak"></span><span class="perf b" data-page-node-id="K7mFdorsMeGzlkZQiXw7uN"></span><div class="amt" data-page-node-id="PA3MmHl6QobbB6XyHjtotj"><b data-page-node-id="usDL0EGWpHoErLJkygq7Bp">¥5</b><span data-page-node-id="1iXTkk3lRDIexiwMIAuE7E">无门槛</span></div><div class="info" data-page-node-id="9LaJJM1ehR4K85Vqw2CmPe"><b data-page-node-id="Pqtpo1HjRH9LRb8BtjUtIE">满减券</b><div class="small" data-page-node-id="W9tdD8IwyHJRXSqdMcgiNb">2026-10-05 到期</div></div><div class="redeem" data-page-node-id="Mep3KxzYiwDMAmJyDhzywX"><span class="tag ok" data-page-node-id="iRcVbbJnzAV7VANbWcABpW">未使用</span></div></div>
+          </div>
+          <div data-ctab="used" hidden data-page-node-id="QULQjO0twVui9jE2BFM6vg">
+            <div class="coupon off" data-page-node-id="t8UDOTMFzw0VkjXWXCnSbC"><span class="perf t" data-page-node-id="apGts2jEFGunYgrBIwoH7U"></span><span class="perf b" data-page-node-id="8aJoQvClhK24pe9dj5Z9Sx"></span><div class="amt" data-page-node-id="T5z732Ruf8PsDhAqy46MYC"><b data-page-node-id="chB34pnFxQw6UoTA6aDGO8">¥20</b><span data-page-node-id="c5hpZxQOGt0riaxTJFgYtj">满 100 可用</span></div><div class="info" data-page-node-id="fNFeoIJ6CKBjQFsjvhX9Xw"><b data-page-node-id="0WFwX6Br0hZNp6qOTAtQrJ">满减券</b><div class="small" data-page-node-id="sp0rO0JjDKoThZcCRrh8o7">核销于 09-12 订单 …013</div></div><div class="redeem" data-page-node-id="QfFB2pRccANH8K0sKyYaaB"><span class="tag" data-page-node-id="eQqDcl1FSxphK1kAdXfNlD">已使用</span></div></div>
+          </div>
+          <div data-ctab="expired" hidden data-page-node-id="ca2LO0Jy910C2hsvMceRjZ">
+            <div class="coupon off" data-page-node-id="yOJGaLHkprD02xvKx20x2e"><span class="perf t" data-page-node-id="RnOLQSFDFFEmBBGOQPKLN7"></span><span class="perf b" data-page-node-id="ZssQmTbqbujx8t52bkghkV"></span><div class="amt" data-page-node-id="U7YkEEP1gEe8kSNVyEuGVq"><b data-page-node-id="ZUgnrjmzA1Sj3dHf0XUG4f">¥10</b><span data-page-node-id="pDZSHxbLd33PfT8gCDScwm">满 50 可用</span></div><div class="info" data-page-node-id="k13SUQJUPIBhI043CHHY68"><b data-page-node-id="Jm7LbHX31ckWSD7Bl0mGSM">满减券</b><div class="small" data-page-node-id="fcVBjayDoZ1vOpMpl8Adfx">09-01 已过期 · 积分不退</div></div><div class="redeem" data-page-node-id="LXaaZ2zWSo81s0I3QkT5bw"><span class="tag danger" data-page-node-id="dLq6A4YvanCgcFHH3V5MjB">已过期</span></div></div>
+          </div>
+        </div>
+
+        <!-- ============ 工作台 ============ -->
+        <div class="page" id="p-work" data-tab="work" data-page-node-id="sx3ECvlO27VrOwSscyCOoK">
+          <div class="hero" style="padding:54px 18px 52px" data-page-node-id="GucFeRAU4P5sVabDd23G31">
+            <span class="halo" data-page-node-id="mBN9oMVTs2EDcpkoOA8Ysd"></span>
+            <div class="store-bar" style="cursor:default" data-page-node-id="mYnrvdcvmS2dEloP0jnLgN">
+              <div class="nm" data-page-node-id="c3CNbJ1UXYkrAwxctyT39J"><b data-page-node-id="pAaNxpuq7UJZTyBFKZxqpv">轻语美发 · 佛山禅城店</b><span data-page-node-id="qd82uMoIeWpHzpXRq21Oe4">店员：小李 · 商家工作台</span></div>
+              <span class="switch-pill" onclick="setMode('cust')" data-page-node-id="MVfvKikgLKbcWivAmKGQX5">退出</span>
+            </div>
+          </div>
+          <div class="wgrid lift" data-page-node-id="svnNIVyUM5BAiahUmpxJKE">
+            <div class="w" onclick="go('p-cashier')" data-page-node-id="SFjjJ5mHXBklHHnK6eTOIB"><span class="wi" style="background:var(--accent-bg);color:var(--accent-deep)" data-page-node-id="qtVYmgTMBUIZGORoi3NBqH"><svg class="ic l" data-page-node-id="NYRlo7nxoSGVuIp6Msv2yu"><use href="#i-cashier" data-page-node-id="hbALwZ32GBZ2RcdU5XKcFa"/></svg></span><b data-page-node-id="FaYytFRiRS8QDDlZETFLuH">收银开单</b><span data-page-node-id="jBkCDCky21MPnRw8ZMzgjt">逐笔录入 · 确认收款</span></div>
+            <div class="w" onclick="go('p-recharge')" data-page-node-id="KblToKDpjl3tai8XzgIO7V"><span class="wi" style="background:var(--warn-bg);color:var(--warn)" data-page-node-id="DtPwLewLcygA5X3aqc3ddq"><svg class="ic l" data-page-node-id="SgwjkPhqpgUTWB9AwLH9sg"><use href="#i-recharge" data-page-node-id="IKwBQTfLYp7EFvbQWyAjmE"/></svg></span><b data-page-node-id="bWyPZnj0NU8VjXaqjpLLwf">会员充值</b><span data-page-node-id="QmiWyoHV84z5gnEZiZwrqv">线下收款 · 确认到账</span></div>
+            <div class="w" onclick="go('p-msearch')" data-page-node-id="qMIe9dJ9uLxYrzaEhQYatn"><span class="wi" style="background:#e6f1fb;color:#185fa5" data-page-node-id="Pkh5u6YzqLEHoZ84WWQdCC"><svg class="ic l" data-page-node-id="auCVxXUBJWHeXQWPQSPVtu"><use href="#i-search" data-page-node-id="mytzjZ3rprsWtwDIedTekj"/></svg></span><b data-page-node-id="FDAsQaaE7vnrPbHsjvyMwM">会员查询</b><span data-page-node-id="fzB5HjxV9DFHM8lctnf0VA">本店会员池</span></div>
+            <div class="w" onclick="go('p-orders')" data-page-node-id="2PqkRahEGkDtzroqUzGhwK"><span class="wi" style="background:#f1edfb;color:#534ab7" data-page-node-id="46389snEeUWdn5ngB9bohL"><svg class="ic l" data-page-node-id="4ieplpMYezSYG1JgRGjAKd"><use href="#i-chart" data-page-node-id="XGpO6gx3E4c26BVBct3ggS"/></svg></span><b data-page-node-id="bpqFdum6DYIqcnhVRgBDjL">今日流水</b><span data-page-node-id="gHlT7Kyxq3wggIvuW2hsWo">订单 · 支付方式</span></div>
+          </div>
+          <div class="notice" style="margin-top:14px" data-page-node-id="y4uEzLLoolujTv3lAh1hU3"><svg class="ic s" data-page-node-id="lPzmCW67ge7Nptf9ybYujh"><use href="#i-card" data-page-node-id="cGiLyYVshtCN3f6XIYXFbu"/></svg><span data-page-node-id="aAi4K2giKFC6FilqlibxyB">充值冲正、优惠券配置在管理台操作，小程序无冲正入口（PRD 6.6）</span></div>
+        </div>
+
+        <!-- ============ 收银开单 ============ -->
+        <div class="page" id="p-cashier" data-page-node-id="xohQuyqxYx9hn9vGJ8d8oi">
+          <div class="navbar" style="margin-bottom:10px" data-page-node-id="1d7rhdiHRZobTaC4A4yquz"><button class="back" onclick="go('p-work')" data-page-node-id="7SPbAvTnmo7502mNECCzwB">‹</button>收银开单</div>
+
+          <div class="card" data-page-node-id="XNCbNAIolmnBVh4oH9x0kD">
+            <h3 data-page-node-id="et2gLW3uwI6VVH40yBNCbl">1 · 会员（可选）</h3>
+            <div class="pick on" onclick="pickOnly(this,'payee')" data-page-node-id="y35hxCfW49X2Cn2n2hVq0f"><span class="radio" data-page-node-id="CtmEhCx7B9nrllHfKeNTOc"></span><div style="flex:1;min-width:0" data-page-node-id="5iLqUI2GYg0DdhdYErG1S0"><b class="small" data-page-node-id="iPH5HZjX2KuaR2oxPjWJC7">王女士 138****6688</b><div class="muted" data-page-node-id="glpHWD8vcyh6EcPTbnTwTo">余额 ¥196.50 · 积分 86.50 · 可用券 3 张</div></div><span class="tag ok" data-page-node-id="8Apk6kFPGkFiG1EGuR8z5W">已选</span></div>
+            <div class="pick" onclick="pickOnly(this,'payee')" data-page-node-id="g48A8C6Hylhmu3lHJGtkRq"><span class="radio" data-page-node-id="b4YgA9EERFQzEuNQvke34Q"></span><div style="flex:1" data-page-node-id="HLEqTdMGWNDb5wwlE0dASu"><b class="small" data-page-node-id="gMml71g4DirKDnZsudLACC">散客（不选会员）</b><div class="muted" data-page-node-id="NHWCkZqnq2N1uQlKF8QB8R">无余额 / 积分 / 券</div></div></div>
+          </div>
+
+          <div class="card" data-page-node-id="czXUMXT3xycc2ECmZdU636">
+            <h3 data-page-node-id="gTvEnjDyW1JGc3pm0KAx7t">2 · 消费明细 <span class="muted" style="font-weight:400;font-size:12px" data-page-node-id="jhENaypfzFJHcDg7AG2Bxp">单价 × 数量，名称选填</span></h3>
+            <div id="lines" data-page-node-id="5bAsiu3Q7Lp82oZwBUHGFG"></div>
+            <button class="addline" onclick="addLine()" data-page-node-id="bOjFQ5qhobcYUFaGyX71vG">＋ 添加一笔</button>
+            <div class="muted" data-page-node-id="Uavtwolr9lZYHsZ5h9BGi2">逐笔录入系统自动合计，店员只录入不计算（如：10 元 × 2、27 元 × 1）</div>
+          </div>
+
+          <div class="calc" data-page-node-id="owArApoaASFPCzkzGDy7sF">
+            <div class="crow" data-page-node-id="GQxPpNMCpSOmDEOhpWQZoe"><span data-page-node-id="CTMBkcEdlZUWIJqkrSqBfW">订单总额（自动合计）</span><b class="num" id="sumTotal" data-page-node-id="GZjuwMh9HqjmEJvB22Ma2H">¥0.00</b></div>
+          </div>
+
+          <div class="card" data-page-node-id="D7OqmDRWsnFT3jnZGbG2VX">
+            <h3 data-page-node-id="geewqGFfMqS25E6a9J3PVH">3 · 优惠券 <span class="muted" style="font-weight:400;font-size:12px" data-page-node-id="aVfVSx64hM4FBDvvpvlQ7r">每单限一张</span></h3>
+            <div id="couponPicks" data-page-node-id="3FjGdjxxkUeAiohen8GnBD"></div>
+            <div class="muted" data-page-node-id="oFIjwPqCfarMahFOuSk5Ga">选券后修改明细会自动复检门槛，不满足则取消选中（PRD 6.4）</div>
+          </div>
+
+          <div class="calc" data-page-node-id="HhGjVyvUGsU53OK3GSANAG">
+            <div class="crow total" data-page-node-id="kaiWLNVibCHAltmtCuv3xa"><span data-page-node-id="AnV4EkGREqRFayrGcip2hZ">应付金额</span><b class="num" id="sumPay" style="color:var(--accent-deep)" data-page-node-id="HDXNQQTvjJgh2NLFXOsUIP">¥0.00</b></div>
+            <div class="crow" data-page-node-id="wfi48EticeTBjSvJgc1dTv"><span class="muted small" data-page-node-id="HpgSXw1oQcaUaJWhzUuLoV">本单积分（应付等额预估）</span><b class="num small muted" id="sumPoint" data-page-node-id="P0IGqycdGfBxdV0cMLcN0p">0.00</b></div>
+          </div>
+
+          <div class="card" data-page-node-id="R0dgxjaVNfPWCbbWNos6mk">
+            <h3 data-page-node-id="lFDqEnYqByV8hogMLr3Kj3">4 · 支付方式</h3>
+            <div class="radios" id="payWays" data-page-node-id="TMmf2lrc4ECdo1RzkzwcEQ">
+              <label data-v="balance" onclick="pickPay(this)" data-page-node-id="Cc6rNVvD4NZOOVmUZeEHkK"><input type="radio" name="pay" data-page-node-id="DDTJNDesGNvwQTyrw5UcPC">余额收款</label>
+              <label data-v="wx" onclick="pickPay(this)" data-page-node-id="tursSkgZEPF3yXpbwboRje"><input type="radio" name="pay" data-page-node-id="7CKbJJ3BBKTEFlDJSzzZut">微信收款</label>
+              <label data-v="ali" onclick="pickPay(this)" data-page-node-id="lan7qAPzZUMI9hKZm2Fd1J"><input type="radio" name="pay" data-page-node-id="Va5ZR2InvfrGbZyKDOgoLu">支付宝收款</label>
+              <label data-v="cash" onclick="pickPay(this)" data-page-node-id="7ELCkjnhMnt272qRjYvvp4"><input type="radio" name="pay" data-page-node-id="yf4Kg93UIk3jQoPSmZHacS">现金收款</label>
+            </div>
+            <div class="field note" id="payNote" style="margin-top:8px" data-page-node-id="9UhNOjai15LyZaGosVGnZB">微信 / 支付宝 / 现金 = 线下收款标记，平台不经手资金；余额收款直接扣减会员余额（同事务，失败整单失败）。</div>
+          </div>
+
+          <button class="btn" id="confirmBtn" onclick="confirmOrder()" disabled data-page-node-id="TqxyetE5RcHhalU7QqMMms">确认收款</button>
+          <div class="field note" style="margin:8px 14px 0" data-page-node-id="4tbWEDhNBsv1pqjYtbdw4V">不存在 0 元单：应付必须大于 0 才可确认收款（PRD 5.3.1）。防重复提交：幂等 token。</div>
+        </div>
+
+        <!-- 收银成功 -->
+        <div class="page" id="p-order-done" data-page-node-id="F3ORrhVhCwATDDcZ0muU92">
+          <div class="success-ic" data-page-node-id="LxJjSVa4JvBy4xJSsOmKOf"><svg class="ic" style="width:30px;height:30px;stroke-width:2" data-page-node-id="jRNhouEcLUFZm2QI9Vg0Vm"><use href="#i-check" data-page-node-id="ebehHitc10lfTWQtIN2w3n"/></svg></div>
+          <div style="text-align:center" data-page-node-id="F4LW3pCFIKD8R5dIVsfDLw"><h3 style="font-size:16px" data-page-node-id="f2VQ9IFo8DnmXtC3btYr2H">收款成功</h3><div class="muted" id="doneSummary" style="margin-top:4px" data-page-node-id="SVfgcco7vFnVG62q1lHis7"></div></div>
+          <div class="card" style="margin-top:20px" id="doneDetail" data-page-node-id="q84yFSlSS6sMUUpDOEUdbr"></div>
+          <button class="btn" onclick="go('p-work')" data-page-node-id="VDCbTjogZf4E9KXZkSc6SB">返回工作台</button>
+          <button class="btn btn-gray" style="margin:10px 14px 0" onclick="resetCashier();go('p-cashier')" data-page-node-id="TpeEpJEUH3iaLBbmczhwHl">再开一单</button>
+        </div>
+
+        <!-- ============ 充值 ============ -->
+        <div class="page" id="p-recharge" data-page-node-id="SHuU9dIgV1NbEuWmDNqID0">
+          <div class="navbar" style="margin-bottom:10px" data-page-node-id="3oOOgyExjByVjr1Dvcehf9"><button class="back" onclick="go('p-work')" data-page-node-id="GgPRvwxrXa4kVhDckfZYgD">‹</button>会员充值</div>
+          <div class="card" data-page-node-id="ODv6ljJ2aPieHS03YSfoiB">
+            <div class="field" data-page-node-id="ufxIh8uz6pKGGvd78PENPs">
+              <label data-page-node-id="0WaaQDVIh0pnaxSwwZ7cFa">会员 <span class="req" data-page-node-id="HD8YWtogxdS6cFHk0BvInn">*</span></label>
+              <div class="pick on" style="margin-bottom:0" onclick="pickOnly(this,'rc')" data-page-node-id="fysMSOnwocizw3RpYG745Y"><span class="radio" data-page-node-id="HqPihCZR5YqOBWU3jfGUJm"></span><div style="flex:1" data-page-node-id="QHjEjccWVCCqU9n61Yx9To"><b class="small" data-page-node-id="6kX9MqyuDmdlZ0VOXGbn2r">王女士 138****6688</b><div class="muted" data-page-node-id="fTFMjmH0tIFGTGHbmJ9R6L">当前余额 ¥196.50</div></div><span class="tag ok" data-page-node-id="1zkSkWUMJeS2igWWmeMJVa">已选</span></div>
+            </div>
+            <div class="field" data-page-node-id="5DRfRegxZ5XJIVkB7mU3aP">
+              <label data-page-node-id="JXE4OcPMoHwBb1O6SuHxzS">充值金额（本金）<span class="req" data-page-node-id="35jCpDUefjZIWehxqeqvGx">*</span></label>
+              <input type="number" id="rcBase" value="100" oninput="rcCalc()" data-page-node-id="7PiRGFdP38ya02I1GijGoY">
+              <div class="note" data-page-node-id="jkjjvTiue6LNJIDQYoLmM8">大于 0，两位小数，上限 99999.99</div>
+            </div>
+            <div class="field" data-page-node-id="EwtFDe5S2VEsoC3J4SEkAE">
+              <label data-page-node-id="G1yym33Vp8WC8B5jmstAdo">赠送金额（无活动不填）</label>
+              <input type="number" id="rcGift" value="10" oninput="rcCalc()" data-page-node-id="102N8CmwCWeIakSHYJNOOS">
+              <div class="note" data-page-node-id="zJ8Mrxq8WA1CQda4JraKHU">必须 ≤ 充值金额（PRD 5.1.2），超出前端拦截 + 后端拒绝</div>
+            </div>
+            <div class="field" data-page-node-id="4H4mi9mhkyjCRfmu2wA3ZW">
+              <label data-page-node-id="7HQU7MbctDUFCaJUKo3V6h">充值方式 <span class="req" data-page-node-id="Rzc5HYyWtyvYl4tOkOJ777">*</span>（线下收款标记，不触发线上支付）</label>
+              <div class="radios" data-page-node-id="VsaAp0ekRNsGJDodzdFKOB">
+                <label class="on" onclick="pickRadio(this)" data-page-node-id="mzLs4uXBU1HOUAPkPTEgFl"><input type="radio" name="rcway" data-page-node-id="Kt72Sc5L32Tre6JGocNadn">微信收款</label>
+                <label onclick="pickRadio(this)" data-page-node-id="CJqj51LQMtJYhFbaHNwtBL"><input type="radio" name="rcway" data-page-node-id="6sCI4Ocws9RJXTUYNMeFkc">支付宝收款</label>
+                <label onclick="pickRadio(this)" data-page-node-id="jUdIK46J8pz8rS3XhWdM4V"><input type="radio" name="rcway" data-page-node-id="GNGDoxanesedNnaQ3jRPs9">现金收款</label>
+              </div>
+            </div>
+            <div class="calc" style="margin:0 0 14px;border:1px solid var(--border);box-shadow:none" data-page-node-id="3fYQZ30Y2Wfj5BHIJsZpmU">
+              <div class="crow" data-page-node-id="rNVNZtb25Nt6ROBkyPLjI5"><span data-page-node-id="KwkrrGXDAR1j9ZvERhLjwA">到账合计（本金 + 赠送）</span><b class="num" id="rcTotal" style="color:var(--accent-deep);font-size:20px" data-page-node-id="nUU4lfJ180BHSfjyHdjvGb">¥110.00</b></div>
+              <div class="crow" data-page-node-id="6G4wLKbVnpuODysmInVkHR"><span class="muted small" data-page-node-id="Fu3XgvmILrj0DIgPrKRyRE">充后余额</span><b class="num small muted" id="rcAfter" data-page-node-id="a9oXr3HMEdAPn38Ald3THA">¥306.50</b></div>
+            </div>
+            <div class="field" data-page-node-id="64fN44X3ehTSmKije7nsdG"><label data-page-node-id="ZldapD6AKbmQ6shspoYJXw">备注（选填）</label><input type="text" placeholder="如：周年庆充值活动" data-page-node-id="UPafDCIkyqOjCVRmGFxsXF"></div>
+            <button class="btn" style="width:100%;margin:0" onclick="toast('充值确认 → 余额 +110.00，记充值流水（本金100/赠送10/微信收款）')" data-page-node-id="ICGyNDc92AL4NwpD8x5U35">确认到账</button>
+            <div class="field note" data-page-node-id="pU2UBQObwhl9wiDD9ruH56">确认后即时生效、不可撤销；录错由有冲正权限的员工当日到管理台冲正（PRD 5.1.2 / 6.6）。</div>
+          </div>
+        </div>
+
+        <!-- ============ 会员查询 ============ -->
+        <div class="page" id="p-msearch" data-page-node-id="PFdmOiDB4Uz6nFI3NCF1q5">
+          <div class="navbar" style="margin-bottom:10px" data-page-node-id="h4OC2OKlxAneBDVDgnzH1O"><button class="back" onclick="go('p-work')" data-page-node-id="iisniKChMLBoQKrGY0N1Vm">‹</button>会员查询</div>
+          <div class="search-bar" data-page-node-id="A4WGLySXwUFPLOMEUzB1YC"><input type="search" placeholder="手机号 / 卡号 / 昵称（仅本店会员）" data-page-node-id="BP6itkTdL5Dt5XQBodqM41"></div>
+          <div class="list-row" style="cursor:pointer" onclick="go('p-mdetail')" data-page-node-id="MffCmkkgdvoVTPine1NNUb">
+            <div class="row" data-page-node-id="8Un8cmgZVj67PFsNoSZkAM"><span class="t" data-page-node-id="C4QCrC33Qaxc5jf2CyMoVx">王女士 138****6688</span><span class="tag ok" data-page-node-id="R23yB280RsjAVd6o03yVxu">余额 ¥196.50</span></div>
+            <div class="muted" data-page-node-id="G8AtT3c6mGnO98FSA8sgNx">卡号 8800 0021 · 积分 86.50 · 开卡 2026-09-10</div>
+          </div>
+          <div class="list-row" data-page-node-id="PI6IMrSZvqzSfITPERRLaN">
+            <div class="row" data-page-node-id="q7ymEETZKtbssXjxaDWfHV"><span class="t" data-page-node-id="sj69KFYIm5gBEW5pp2sHxa">陈先生 139****2210</span><span class="tag" data-page-node-id="TabCL3C8rDSyrxoQ5zYe1U">余额 ¥0.00</span></div>
+            <div class="muted" data-page-node-id="Vyiy5azw19DUxxYDmOkFjK">卡号 8800 0022 · 积分 12.00 · 线下登记（未绑微信）</div>
+          </div>
+        </div>
+
+        <div class="page" id="p-mdetail" data-page-node-id="y1rLPmTVYCKu8nq1scdJhp">
+          <div class="navbar" style="margin-bottom:10px" data-page-node-id="USkDBrMw0mosI9XDs2aPqq"><button class="back" onclick="go('p-msearch')" data-page-node-id="oE4rJBbzSgHmoZReaer3vM">‹</button>会员详情</div>
+          <div class="card" data-page-node-id="EmRFqzt3hw5G6DwGeoa6rH">
+            <div class="row" data-page-node-id="uOAtvRHaNqBz7DLHWxN7lp"><b data-page-node-id="c06jFfvsVNPuMHf3rMe3pF">王女士</b><span class="tag ok" data-page-node-id="9HPjw565dceclRSYHxlHKo">微信已绑定</span></div>
+            <div class="muted" data-page-node-id="RshtkhQSzHQFFcpnC6GRW0">138****6688 · 卡号 8800 0021 · 开卡 2026-09-10</div>
+          </div>
+          <div class="card" data-page-node-id="6QbMH37TwFkFBNpbAsbm4m">
+            <div class="row" style="padding:6px 0" data-page-node-id="GNY6C59F2TE6I8W7yYmAQd"><span data-page-node-id="OP9hCHt1LS6QGZGCA4BlJX">余额</span><b class="num" data-page-node-id="Y4OQR080UnOvZOxMFBIdzi">¥196.50</b></div>
+            <div class="row" style="padding:6px 0" data-page-node-id="tiegEHhFjcLYgAFEPbKdgV"><span data-page-node-id="h6c39MyThuOhi9VAieO112">积分</span><b class="num" data-page-node-id="rjvJU6Jk6DTWdIW9RS13bu">86.50</b></div>
+            <div class="row" style="padding:6px 0" data-page-node-id="1XEOe4QltpYiWyK4DgXmFO"><span data-page-node-id="70u58HZALEbiBbYB9IkFcW">累计消费</span><b class="num" data-page-node-id="R9EQynAWfz84DB9sXCjfoI">¥1,286.00（12 次）</b></div>
+            <div class="row" style="padding:6px 0" data-page-node-id="H1SctdbN7k6BcFEOvGFYwH"><span data-page-node-id="HxM4fqF2t3rAjVB5Wp4ls5">可用优惠券</span><span data-page-node-id="KOs88aGcvSzVXmD9K06QBH">3 张</span></div>
+          </div>
+          <button class="btn" onclick="go('p-recharge')" data-page-node-id="yQ16wRZbTrkBXVVnDh63I8">去充值</button>
+        </div>
+
+        <!-- ============ 今日流水 ============ -->
+        <div class="page" id="p-orders" data-page-node-id="cMKb7vGlGBDfF9VSZ9r2cw">
+          <div class="navbar" style="margin-bottom:10px" data-page-node-id="NKU7vWx2heZOgzHHkX4YDX"><button class="back" onclick="go('p-work')" data-page-node-id="P1Efzm9Cj8R3MqxSjIsWr9">‹</button>今日流水</div>
+          <div class="calc" style="margin-top:0" data-page-node-id="M2FMZ61v3CFky44oQJCJjw"><div class="crow" data-page-node-id="VOSz7kA6myxaRlZuheDJDn"><span data-page-node-id="X4B2CoyGEWQD0v6AEnE1O2">今日营业额</span><b class="num" data-page-node-id="xoKfchAgtFPEkbc4Vo6UTw">¥686.00</b></div><div class="crow" data-page-node-id="JcHEZVdzNAoH0r8SHHXigT"><span data-page-node-id="GHuNWzRrTjFi5UzjAhgYJ7">单量</span><b class="num" data-page-node-id="GcLCBcmv8HsYEhxOTxruEE">9 单</b></div></div>
+          <div class="list-row" data-page-node-id="zRqxTlPhXwW4IFzOUpSYoh">
+            <div class="row" data-page-node-id="PrnqtuUGEfQXXpckKe4GxC"><span class="t" data-page-node-id="EdYgnGSGVav15nqovSKInh">订单 …013 · 王女士</span><b class="num" data-page-node-id="KJgvhH3XWpC8DxFf8Uip9U">应付 ¥46.40</b></div>
+            <div class="muted" data-page-node-id="knsMjCv8kE5ohWwB1n1L3l">总额 ¥58.00 − 8折券 ¥11.60 · 余额收款 · 攒 46.40 积分</div>
+          </div>
+          <div class="list-row" data-page-node-id="METTziesaNUIX5mzYiG3gN">
+            <div class="row" data-page-node-id="c6RvabKbKGaG5l0lm9L5HK"><span class="t" data-page-node-id="E0GvZKCJDptmXZJxfJmiGA">订单 …012 · 散客</span><b class="num" data-page-node-id="VDUTQaKLz3fWKoKkREY6Xc">应付 ¥300.00</b></div>
+            <div class="muted" data-page-node-id="xBUsh1TGCv68Ac1t1S7GNM">总额 ¥300.00 · 微信收款（线下标记）· 不攒积分</div>
+          </div>
+          <div class="list-row" data-page-node-id="BssxVDpkt2ERNFIQ2IZp8m">
+            <div class="row" data-page-node-id="yH6qSiVN6jaa5OSW4EtJv7"><span class="t" data-page-node-id="KSTLyHI0UnhJeZaoUR8H6B">订单 …011 · 王女士</span><b class="num" data-page-node-id="8PgLPuiAmT5h5AzBqlNL6r">应付 ¥88.00</b></div>
+            <div class="muted" data-page-node-id="Fi7QxzfmQVpFiIS1fDmBMT">总额 ¥88.00 · 支付宝收款（线下标记）· 攒 88.00 积分</div>
+          </div>
+        </div>
+
+        </div><!-- /pages -->
+
+        <!-- 兑换确认弹窗 -->
+        <div class="modal-mask" id="redeemMask" data-page-node-id="qnGf9Q4fJN2Ob4ic512q43">
+          <div class="modal" data-page-node-id="Mt5BaJrBoCePeCmGvpNgXH">
+            <h3 data-page-node-id="IHF2YynV9niPuAsZuvvlAD">确认兑换？</h3>
+            <p id="redeemText" data-page-node-id="ImCK1SLADSBLnceqm9DLzK"></p>
+            <p style="margin-top:6px" data-page-node-id="FoHXzPXUscGv9HBhA33PWT">兑换后积分即时扣减，不支持退券回积分</p>
+            <div class="ops" data-page-node-id="Pyo56GurTm2KNzgJ4WL6mu">
+              <button class="btn btn-gray" onclick="closeRedeem()" data-page-node-id="VZETaqpNCRx54L9j2L4frd">再想想</button>
+              <button class="btn" onclick="doRedeem()" data-page-node-id="bnPCMmuv063FlpAkaBSFKx">确认兑换</button>
+            </div>
+          </div>
+        </div>
+        <div class="toast" id="toast" data-page-node-id="UAJ6dFGQ3lADqYXCLm9UIV"></div>
+
+        <!-- tabbar：常驻显示；顾客端两个 tab，员工视角多一个「工作台」 -->
+        <div class="tabbar" id="tabbar">
+          <div class="tab on" data-t="home" onclick="goTab('home')"><svg class="ic"><use href="#i-card"/></svg>会员中心</div>
+          <div class="tab" data-t="mall" onclick="goTab('mall')"><svg class="ic"><use href="#i-gift"/></svg>积分商城</div>
+          <div class="tab" id="tabWork" data-t="work" onclick="goTab('work')" style="display:none"><svg class="ic"><use href="#i-cashier"/></svg>工作台</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="doc" style="padding:24px 0 0" data-page-node-id="DdLKsJnKiBPrMHfDdZESU1">
+    <p class="hint">v3 结构：顾客端 tab = 会员中心 + 积分商城（两 tab），会员中心一屏聚合店名/资产/记录/门店切换/工作台入口；tabbar 常驻显示，员工视角多一个「工作台」tab。评审要点：① 收银逐笔累加→合并结算顺序 ② 选券后改明细的复检 ③ 两 tab 信息密度是否够用 ④ 票券样式券卡。</p>
+  </div>
+</div>
+
+<script>
+/* ---------- 路由 ---------- */
+let mode='cust', curPage='p-home';
+const pages={}; document.querySelectorAll('.page').forEach(p=>pages[p.id]=p);
+function go(id){
+  pages[curPage].classList.remove('on');
+  pages[id].classList.add('on');
+  curPage=id;
+  document.querySelector('.pages').scrollTop=0;
+  const tab=pages[id].dataset.tab;
+  if(tab)document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.t===tab));
+}
+function goTab(t){
+  if(t==='work'){go('p-work');return;}
+  if(mode!=='cust')setMode('cust');
+  go('p-'+(t==='mall'?'mall':'home'));
+}
+function setMode(m){
+  mode=m;
+  document.getElementById('modeCust').classList.toggle('on',m==='cust');
+  document.getElementById('modeStaff').classList.toggle('on',m==='staff');
+  document.getElementById('modeTag').textContent=m==='cust'?'顾客视角':'商家工作台';
+  document.getElementById('tabWork').style.display=m==='staff'?'flex':'none';
+  go(m==='cust'?'p-home':'p-work');
+}
+/* ---------- 通用交互 ---------- */
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('on');clearTimeout(t._tm);t._tm=setTimeout(()=>t.classList.remove('on'),2200);}
+function pickOnly(el,group){el.parentElement.querySelectorAll('.pick').forEach(p=>{p.classList.remove('on');p.querySelector('.tag')?.remove();});el.classList.add('on');const tag=document.createElement('span');tag.className='tag ok';tag.textContent='已选';el.appendChild(tag);if(group==='payee')refreshCashier();}
+function pickRadio(el){el.parentElement.querySelectorAll('label').forEach(l=>l.classList.remove('on'));el.classList.add('on');}
+/* ---------- 积分兑换 ---------- */
+let redeemInfo=null;
+function askRedeem(name,cost){redeemInfo={name,cost};document.getElementById('redeemText').textContent=`「${name}」将扣除 ${cost.toFixed(2)} 积分`;document.getElementById('redeemMask').classList.add('on');}
+function closeRedeem(){document.getElementById('redeemMask').classList.remove('on');}
+function doRedeem(){closeRedeem();toast(`兑换成功 → 扣 ${redeemInfo.cost.toFixed(2)} 积分，券已入「我的优惠券」`);}
+/* ---------- 优惠券列表 tab ---------- */
+function coupTab(btn,key){
+  btn.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('on'));btn.classList.add('on');
+  document.querySelectorAll('[data-ctab]').forEach(d=>d.hidden=d.dataset.ctab!==key);
+}
+/* ---------- 收银开单 ---------- */
+const coupons=[
+  {name:'满 50 减 10',type:'满减',threshold:50,value:10},
+  {name:'8 折券（封顶 30 元）',type:'折扣',discount:80,cap:30},
+  {name:'满 100 减 20',type:'满减',threshold:100,value:20},
+];
+let selCoupon=-1, selPay=null;
+const MEMBER_BALANCE=196.50;
+function addLine(name='',price='',qty=1){
+  const d=document.createElement('div');d.className='line-item';
+  d.innerHTML=`<input class="li-name" type="text" placeholder="名称（选填）" value="${name}">
+    <input class="li-price" type="number" step="0.01" min="0" placeholder="单价" value="${price}">
+    <input class="li-qty" type="number" min="1" value="${qty}">
+    <span class="li-sum">¥0.00</span><button class="li-del" onclick="this.parentElement.remove();refreshCashier()">✕</button>`;
+  d.querySelectorAll('input').forEach(i=>i.addEventListener('input',refreshCashier));
+  document.getElementById('lines').appendChild(d);
+  refreshCashier();
+}
+function resetCashier(){
+  document.getElementById('lines').innerHTML='';selCoupon=-1;selPay=null;
+  document.getElementById('payWays').querySelectorAll('label').forEach(l=>l.classList.remove('on'));
+  addLine('洗剪吹',58,1);
+}
+function calcTotal(){
+  let t=0;
+  document.querySelectorAll('#lines .line-item').forEach(li=>{
+    const p=parseFloat(li.querySelector('.li-price').value)||0;
+    const q=parseInt(li.querySelector('.li-qty').value)||0;
+    const s=Math.round(p*q*100)/100;t+=s;
+    li.querySelector('.li-sum').textContent='¥'+s.toFixed(2);
+  });
+  return Math.round(t*100)/100;
+}
+function couponDiscount(c,total){
+  if(c.type==='满减'){ if(total<c.threshold)return null; return Math.min(c.value,total); }
+  const d=Math.round(total*(100-c.discount))/100; return c.cap?Math.min(d,c.cap):d;
+}
+function renderCoupons(total){
+  const box=document.getElementById('couponPicks');box.innerHTML='';
+  coupons.forEach((c,i)=>{
+    const disc=couponDiscount(c,total);
+    const ok=disc!==null&&Math.round((total-disc)*100)>0;
+    const el=document.createElement('div');
+    el.className='pick'+(selCoupon===i?' on':'')+(ok?'':' off');
+    el.innerHTML=`<span class="radio"></span><div style="flex:1;min-width:0"><b class="small">${c.name}</b>
+      <div class="muted">${c.type==='满减'?`门槛 ¥${c.threshold} · 减 ¥${c.value}`:`${c.discount/10} 折${c.cap?` · 封顶 ¥${c.cap}`:''}`}
+      ${ok?` · 本单可减 ¥${disc.toFixed(2)}`:' · 本单不可用：'+(disc===null?'未达门槛（订单总额 ¥'+total.toFixed(2)+'）':'将导致 0 元单')}</div></div>`;
+    if(ok)el.onclick=()=>{selCoupon=selCoupon===i?-1:i;refreshCashier();};
+    box.appendChild(el);
+  });
+}
+function renderPay(total,discount){
+  const pay=selCoupon>=0?discount:0;
+  const due=Math.round((total-pay)*100)/100;
+  const balanceOk=due<=MEMBER_BALANCE;
+  document.getElementById('payWays').querySelectorAll('label').forEach(l=>{
+    const isBal=l.dataset.v==='balance';
+    l.style.opacity=(isBal&&!balanceOk)?'.45':'';
+    l.title=(isBal&&!balanceOk)?`余额 ¥${MEMBER_BALANCE.toFixed(2)}，应付 ¥${due.toFixed(2)}`:'';
+    if(isBal&&!balanceOk&&l.classList.contains('on')){l.classList.remove('on');selPay=null;}
+  });
+  return due;
+}
+function refreshCashier(){
+  const total=calcTotal();
+  if(selCoupon>=0){const d=couponDiscount(coupons[selCoupon],total);if(d===null||Math.round((total-d)*100)<=0)selCoupon=-1;}
+  renderCoupons(total);
+  const discount=selCoupon>=0?couponDiscount(coupons[selCoupon],total):0;
+  const due=renderPay(total,discount);
+  document.getElementById('sumTotal').textContent='¥'+total.toFixed(2);
+  document.getElementById('sumPay').textContent='¥'+due.toFixed(2);
+  document.getElementById('sumPoint').textContent=due.toFixed(2);
+  document.getElementById('confirmBtn').disabled=!(total>0&&due>0&&selPay);
+}
+function pickPay(el){
+  el.parentElement.querySelectorAll('label').forEach(l=>l.classList.remove('on'));
+  el.classList.add('on');selPay=el.dataset.v;refreshCashier();
+}
+function confirmOrder(){
+  const total=calcTotal();
+  const discount=selCoupon>=0?couponDiscount(coupons[selCoupon],total):0;
+  const due=Math.round((total-discount)*100)/100;
+  const payName={balance:'余额收款',wx:'微信收款',ali:'支付宝收款',cash:'现金收款'}[selPay];
+  document.getElementById('doneSummary').textContent=`订单号 20260925…014 · ${payName}`;
+  document.getElementById('doneDetail').innerHTML=
+    `<div class="row"><span>订单总额</span><b class="num">¥${total.toFixed(2)}</b></div>
+     <div class="row" style="margin:4px 0"><span>优惠券</span><b class="num">${selCoupon>=0?coupons[selCoupon].name+'（−¥'+discount.toFixed(2)+'）':'未使用'}</b></div>
+     <div class="row" style="margin:4px 0"><span>应付金额</span><b class="num">¥${due.toFixed(2)}</b></div>
+     <div class="row" style="margin:4px 0"><span>支付方式</span><b>${payName}</b></div>
+     <div class="row" style="margin:4px 0"><span>本单积分</span><b class="num">+${due.toFixed(2)}</b></div>
+     <div class="row"><span>券核销</span><b>${selCoupon>=0?'已使用（记录核销时间与订单号）':'—'}</b></div>`;
+  go('p-order-done');
+}
+/* ---------- 充值 ---------- */
+function rcCalc(){
+  const b=parseFloat(document.getElementById('rcBase').value)||0;
+  let g=parseFloat(document.getElementById('rcGift').value)||0;
+  if(g>b){g=b;document.getElementById('rcGift').value=b;toast('赠送金额不能超过充值金额，已自动纠正');}
+  document.getElementById('rcTotal').textContent='¥'+(b+g).toFixed(2);
+  document.getElementById('rcAfter').textContent='¥'+(196.50+b+g).toFixed(2);
+}
+/* ---------- 时钟 ---------- */
+document.getElementById('clock').textContent=new Date().toTimeString().slice(0,5);
+/* ---------- 初始化 ---------- */
+addLine('洗剪吹',10,2);addLine('护理套餐',27,1);
+go('p-home');
+</script>
+</body>
+</html>

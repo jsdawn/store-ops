@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="06SYOZ7HtVhnqm3Dw27rLe" data-dm-ref="4"><head data-page-node-id="LWfao7GmUehO3aReyUiwBK">
+<meta charset="UTF-8" data-page-node-id="yyzAbAYrk6W84VVsrnOFyu">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="HEQBC68i6A4Q7mMYwHwowL">
+<title>store-ops 管理台原型（低保真）· 仅本期自研 3 页</title>
+<!--
+  低保真交互原型：管理台（RuoYi-Cloud-Plus-UI）本期自研页面。
+  设计意图：贴近 Element Plus 组件形态（蓝灰基调、表格+表单），验证三类页面的字段与交互；
+  框架原生页面（租户/用户/角色/菜单/部门/登录）不画原型，开发时直接用框架 CRUD。
+  本期自研仅 3 页：① 优惠券配置（类型联动表单）② 订单列表（三段金额+券信息）③ 充值流水+冲正。
+-->
+<style>
+:root{
+  --bg:#f0f2f5; --surface:#fff; --text:#1f2329; --muted:#86909c;
+  --primary:#185fa5; --primary-deep:#0c447c; --primary-bg:#e6f1fb;
+  --ok:#0f6e56; --ok-bg:#e1f5ee; --danger:#a32d2d; --danger-bg:#fcebeb;
+  --warn:#8a6116; --warn-bg:#fdf1dd;
+  --border:rgba(31,35,41,.12); --line:#e5e6eb; --radius:8px;
+  --side:#22272e; --side-text:#a8b0bb;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:var(--text);font-size:13px;line-height:1.6}
+.layout{display:flex;min-height:100vh}
+/* 侧栏 */
+.side{width:210px;background:var(--side);color:var(--side-text);flex:none;display:flex;flex-direction:column}
+.logo{padding:18px 16px;color:#fff;font-weight:600;font-size:14px;border-bottom:1px solid rgba(255,255,255,.08)}
+.menu{flex:1;padding:8px 0}
+.m-group{padding:10px 16px 4px;font-size:11px;color:#6b7280}
+.m-item{padding:10px 16px 10px 26px;cursor:pointer;font-size:13px}
+.m-item:hover{color:#fff}
+.m-item.on{color:#fff;background:var(--primary);position:relative}
+.m-item.on::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:#85b7eb}
+.m-item.disabled{opacity:.4;cursor:not-allowed}
+.m-item .fw{font-size:10px;border:1px solid currentColor;border-radius:4px;padding:0 4px;margin-left:6px}
+/* 主区 */
+.main{flex:1;display:flex;flex-direction:column;min-width:0}
+.topbar{height:50px;background:var(--surface);border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 20px;gap:12px}
+.crumb{color:var(--muted)}
+.crumb b{color:var(--text);font-weight:500}
+.topbar .u{margin-left:auto;color:var(--muted)}
+.content{flex:1;padding:16px 20px 60px;overflow:auto}
+.page{display:none}
+.page.on{display:block;animation:fadein .18s ease-out}
+@keyframes fadein{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+/* 卡片/工具条 */
+.panel{background:var(--surface);border-radius:var(--radius);padding:16px;margin-bottom:14px}
+.panel h3{font-size:14px;font-weight:600;margin-bottom:12px}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
+.toolbar input,.toolbar select{padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;background:#fff}
+.btn{padding:7px 16px;border-radius:6px;border:1px solid transparent;font-size:13px;cursor:pointer;font-family:inherit}
+.btn-p{background:var(--primary);color:#fff}
+.btn-o{background:#fff;border-color:var(--border);color:var(--text)}
+.btn-d{background:var(--danger-bg);color:var(--danger);border-color:transparent}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+/* 表格 */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:#f7f8fa;text-align:left;padding:9px 10px;font-weight:500;color:var(--muted);white-space:nowrap}
+td{padding:9px 10px;border-bottom:1px solid var(--line);white-space:nowrap;font-variant-numeric:tabular-nums}
+tr:hover td{background:#fafbfc}
+.tag{display:inline-block;padding:1px 8px;border-radius:4px;font-size:12px}
+.tag.ok{background:var(--ok-bg);color:var(--ok)}
+.tag.gray{background:#eef1f4;color:var(--muted)}
+.tag.warn{background:var(--warn-bg);color:var(--warn)}
+.tag.danger{background:var(--danger-bg);color:var(--danger)}
+.tag.blue{background:var(--primary-bg);color:var(--primary-deep)}
+.link{color:var(--primary);cursor:pointer;background:none;border:none;font-size:13px;font-family:inherit;padding:0}
+.link+.link{margin-left:10px}
+.link.d{color:var(--danger)}
+.pager{display:flex;justify-content:flex-end;gap:6px;margin-top:12px;color:var(--muted);font-size:12px;align-items:center}
+.pager span{padding:4px 9px;border:1px solid var(--border);border-radius:4px;background:#fff}
+.pager span.on{background:var(--primary);color:#fff;border-color:var(--primary)}
+/* 表单/抽屉 */
+.drawer-mask{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;z-index:20}
+.drawer-mask.on{display:block}
+.drawer{position:fixed;top:0;right:-460px;width:440px;height:100vh;background:#fff;z-index:21;transition:right .25s ease-out;display:flex;flex-direction:column;box-shadow:-8px 0 28px rgba(0,0,0,.12)}
+.drawer.on{right:0}
+.d-head{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;font-weight:600}
+.d-body{flex:1;overflow:auto;padding:16px 18px}
+.d-foot{padding:12px 18px;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:flex-end}
+.field{margin-bottom:14px}
+.field>label{display:block;margin-bottom:6px}
+.field .req{color:var(--danger)}
+.field input[type=text],.field input[type=number],.field select,.field textarea{
+  width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit}
+.field .note{font-size:12px;color:var(--muted);margin-top:4px}
+.frow{display:flex;gap:12px}
+.frow .field{flex:1}
+.seg{display:flex;border:1px solid var(--border);border-radius:6px;overflow:hidden;width:fit-content}
+.seg button{padding:7px 22px;border:none;background:#fff;font-size:13px;cursor:pointer;font-family:inherit}
+.seg button.on{background:var(--primary);color:#fff}
+.subform{background:#f7f8fa;border-radius:8px;padding:12px;margin-top:8px}
+.subform h4{font-size:13px;margin-bottom:10px}
+/* 弹窗 */
+.modal-mask{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;z-index:30}
+.modal-mask.on{display:flex}
+.modal{background:#fff;border-radius:10px;width:440px;padding:20px}
+.modal h3{font-size:15px;margin-bottom:12px}
+.modal p{color:var(--muted);font-size:12px;margin-top:6px}
+/* 说明卡 */
+.notice{background:#fff8ea;border:1px solid #f3e3bd;border-radius:var(--radius);padding:12px 14px;font-size:12px;color:var(--warn);margin-bottom:14px}
+.doc-note{color:var(--muted);font-size:12px;margin-top:14px;max-width:720px}
+</style>
+<style id="__dm_no_drag_style__">* { -webkit-user-drag: none !important; }</style><style id="__dm_bindable_badge_style__">[data-sp-bindable="database"]{outline:1px dashed #0088ff;outline-offset:2px;border-radius:4px;}[data-sp-bindable="database"] *{pointer-events:none !important;transition:none !important;animation:none !important;}[data-sp-bindable="database"]{transition:none !important;animation:none !important;}</style></head>
+<body data-page-node-id="tXPsK5s9zKEdyubI9Gmi1X" style="">
+<div class="layout" data-page-node-id="74Zy11FkQHvlhQuAZF4vCn">
+  <!-- 侧栏 -->
+  <div class="side" data-page-node-id="t2DobTyn2ITLzVDAJ9uwDZ">
+    <div class="logo" data-page-node-id="EtGtNZF6PqQqibMIRhj3ug">store-ops 管理台</div>
+    <div class="menu" data-page-node-id="v0ZZg8eov45WsoNFW9ncyn">
+      <div class="m-group" data-page-node-id="1SHDJ8qKGYQKSOzIM7Z9bE">门店经营（本期自研）</div>
+      <div class="m-item on" onclick="showPage('order',this)" data-page-node-id="mF8hs2CVKrb8IippXm7caL">订单管理</div>
+      <div class="m-item" onclick="showPage('coupon',this)" data-page-node-id="5DLqMvYa1aeFrCzI48gnEf">优惠券管理</div>
+      <div class="m-item" onclick="showPage('recharge',this)" data-page-node-id="ozBDqjZkzLD6ctbMb0N4OI">充值流水与冲正</div>
+      <div class="m-item" onclick="showPage('member',this)" data-page-node-id="40O0yOTcPaWDalotPT38Vf">会员管理</div>
+      <div class="m-group" data-page-node-id="zjJjSVD8f8IzEvxStN6HHC">组织与权限（框架自带 · 不出原型）</div>
+      <div class="m-item disabled" data-page-node-id="ui3IHYBV8RaIS8p1S0qnDj">门店管理<span class="fw" data-page-node-id="ZyNFZzboEM4W29AQxsDU3q">P1 框架CRUD</span></div>
+      <div class="m-item disabled" data-page-node-id="FnsleHM79jhG0dTd94ehrA">员工管理<span class="fw" data-page-node-id="t1lTgSo6Eyf2m71WAbCTw0">框架</span></div>
+      <div class="m-item disabled" data-page-node-id="BYLLgpvHiLAcPSEgn0KVpp">角色权限<span class="fw" data-page-node-id="khJ1e6zAEShqmeVpSRScNq">框架</span></div>
+      <div class="m-item disabled" data-page-node-id="2U38SZlaTIAjGmLEOi4FfB">租户管理<span class="fw" data-page-node-id="KgExxlxhcgLt7OFbvwZiDZ">平台超管·框架</span></div>
+      <div class="m-group" data-page-node-id="wyOx0gs6uWsQZoSIg9CXTK">后续迭代</div>
+      <div class="m-item disabled" data-page-node-id="ZiBAdJtHECtygCbwECxTAO">经营报表<span class="fw" data-page-node-id="lhjgfABeaLtvwPagtQuvgp">P4</span></div>
+      <div class="m-item disabled" data-page-node-id="v8aVhbLhQ0nkmfUiCCEmtD">服务预约<span class="fw" data-page-node-id="M7FvBxdY5Ku095Vrww7otk">P6+</span></div>
+    </div>
+  </div>
+
+  <!-- 主区 -->
+  <div class="main" data-page-node-id="0Ml8ztyEluJ9UZwOuDpXc6">
+    <div class="topbar" data-page-node-id="d1ouYBtxLEsiS9PE2XGg9k">
+      <span class="crumb" data-page-node-id="DqKk1u3B7ZTxpOFkfkFibj">门店经营 / <b id="crumbCur" data-page-node-id="DMZpY3g5PGk2kUjfFm8J4I">订单管理</b></span>
+      <span class="u" data-page-node-id="p60JDJi7r5rDhLS4U1FGTG">租户管理员：轻语美发 · 数据范围 = 本租户全部门店</span>
+    </div>
+    <div class="content" data-page-node-id="gsZASfAH1Fuj49MzPD2VVh">
+
+      <!-- ============ 订单管理 ============ -->
+      <div class="page on" id="pg-order" data-page-node-id="QVJakFXqEXBPGF9gBLnswd">
+        <div class="panel" data-page-node-id="EbYWBzX7BQtI7Yagwg212C">
+          <div class="toolbar" data-page-node-id="BCIBPRMb6jJH2CGqWtj5qG">
+            <select data-page-node-id="aDhCqhzPX5UaQ7fMTGWKud"><option data-page-node-id="CPtvHmYBuaHgt6EoOStfBF">全部门店（租户视角）</option><option data-page-node-id="x77EVx3cZE5DqWvOZIDb3J">佛山禅城店</option><option data-page-node-id="tHVtMTOJoyx3ebSYdMCuMf">广州天河店</option></select>
+            <select data-page-node-id="GctyJk9gNh65DpCAcvvUsB"><option data-page-node-id="8EUcNtaYKNxUJePplLfRfM">全部状态</option><option data-page-node-id="2PCjSSK53OVL5iZ9qLzqzq">已完成</option><option data-page-node-id="AAcCgvFWo5CRWBuSCJiMFH">待收款</option><option data-page-node-id="vS0j1kb55U2ujywzsODjp9">已作废</option></select>
+            <select data-page-node-id="ZcFvcfjqPfKGpEz7FQx9br"><option data-page-node-id="4AECPyuYpdWfgY4uBT3hxU">全部支付方式</option><option data-page-node-id="TOQMUxnnwkRkxjO70OIGkm">余额收款</option><option data-page-node-id="zZVH3g3afzenQSSDHq7mKv">微信收款</option><option data-page-node-id="NBTeRIjkUBBHe8GpGvPuvS">支付宝收款</option><option data-page-node-id="CecxrGcz67f15YBI5Jhqz4">现金收款</option></select>
+            <input type="text" placeholder="订单号 / 会员手机号" data-page-node-id="UfOox1dJAVJDInrRkCxUJP">
+            <button class="btn btn-p" data-page-node-id="mPOxDihmXVBGSJXYYNCXCy">查询</button>
+            <button class="btn btn-o" data-page-node-id="UxLybVaEbmRp8BJzEAzNyd">重置</button>
+          </div>
+          <table data-page-node-id="WMuuB7sa9ebW5GtchGWHGv">
+            <thead data-page-node-id="oVCXB44EbFnBTVZzsdiBs2"><tr data-page-node-id="8oI6Jbc0iSGmEkqqO515KP">
+              <th data-page-node-id="AUGO7XjAOj1hIyAqKLEwzZ">订单号 / 时间</th><th data-page-node-id="HBk2AvxoUhDom1JFVRDfNX">门店</th><th data-page-node-id="0aEKixDEJ3wRtkgSS8GqGm">会员</th>
+              <th data-page-node-id="f5lmOAn83jxjbfA16U9lGO">订单总额</th><th data-page-node-id="5vFFxbHHGsar67BaWCgC7m">优惠额（券）</th><th data-page-node-id="Br2W3B5mOH5Elug2fUV0JT">应付金额</th>
+              <th data-page-node-id="Rdj29GF3uoOK0PtDvOTfFQ">支付方式</th><th data-page-node-id="3d5q89fFpB3CPhfVOqK3Gb">状态</th><th data-page-node-id="m4f7TUHd9SMR3Blg6rFbjI">本单积分</th><th data-page-node-id="3mREaC1yOmbOO9ZBZLq2m9">操作</th>
+            </tr></thead>
+            <tbody data-page-node-id="6n7M51ET4J738YOB0tRZUX">
+              <tr data-page-node-id="pDlLIcBGgcBhETKllEQgWh">
+                <td data-page-node-id="s8cuqVDDz6TeQbSKK2ZE7o">20260925…013<br data-page-node-id="TASqHGnEKWk2fvzG0SoUDK"><span style="color:var(--muted)" data-page-node-id="s65r56YiFAxby6qLz9VDWW">09-25 10:32</span></td>
+                <td data-page-node-id="8SCoUdTb8uQYyAGNh3FjoJ">佛山禅城店</td><td data-page-node-id="sdpzZJzlBFv7t5td7pbH52">王女士 138****6688</td>
+                <td data-page-node-id="nJTw1bd9gHTnitjgYmxMLk" style="">¥58.00</td><td data-page-node-id="F2JPjHTNBGF7mrc1GWFTRq">¥11.60<br data-page-node-id="uD9zD8bkcztB2C0ESXgILB"><span style="color:var(--muted)" data-page-node-id="RWwx7dTEP72nfZbK5MapCN">8折券（封顶30）</span></td>
+                <td data-page-node-id="Nl6gC1TmSdPgmRSDjcuRbC"><b data-page-node-id="LLLGlQkzGXy1ODCkgAVTaP">¥46.40</b></td>
+                <td data-page-node-id="F7vxgTTcMaz2gEDnJxT8gN"><span class="tag blue" data-page-node-id="BG30eqNtPhNfncjXzSYMAc">余额收款</span></td>
+                <td data-page-node-id="Bng4r8efnHypXB5HwDj0j7"><span class="tag ok" data-page-node-id="Pc0mEx3e69ByuHI0hvHEyA">已完成</span></td>
+                <td data-page-node-id="0HKe9hqCyvcBVgmaFf3Cqq">+46.40</td>
+                <td data-page-node-id="kUrZ3MyQY2z5qpk0zwL5wR"><button class="link" data-page-node-id="ErWTqHrAF4aX5cwir9lG8v">详情</button><button class="link" data-page-node-id="TOK7vyyjC2E7j9MeEKp7Sk">备注</button></td>
+              </tr>
+              <tr data-page-node-id="PQXspMIZsRTNZ8XVyZ53Ux">
+                <td data-page-node-id="BwXPx7tTIKgqHRaeGBmEh0">20260925…012<br data-page-node-id="AH9fmLxXYG9WDR06Y3EgaK"><span style="color:var(--muted)" data-page-node-id="bT3J5DEE5cQTrAmS3R7EgU">09-25 10:05</span></td>
+                <td data-page-node-id="GYac0CLOyrStJNP8Wsz5Tn">佛山禅城店</td><td data-page-node-id="HZSUBzJjUk0P4BdWI96x7f">散客</td>
+                <td data-page-node-id="AGK9Bdkt7CYsZeQidKH6GA">¥300.00</td><td data-page-node-id="nvDfqZoZu25nuBLphcex4l">—</td>
+                <td data-page-node-id="HHXID9I0HYLQ6BwGRdjSYS"><b data-page-node-id="nQRyOOVdYnCYGYeAUUqmer">¥300.00</b></td>
+                <td data-page-node-id="dZDiB4wBc00v0b6LkLvBw2"><span class="tag gray" data-page-node-id="Sj2SJUaO0hlwPELyoQGr0P">微信收款</span></td>
+                <td data-page-node-id="LZF4BkXDBj4XJfymUFdILR"><span class="tag ok" data-page-node-id="qlTXeK4LrrWAkzv7sMMBjV">已完成</span></td>
+                <td data-page-node-id="s0RPTdj0PLeyEoS6YXz9wO">—</td>
+                <td data-page-node-id="Wh1KAnECllDUHlR3yGLgsx"><button class="link" data-page-node-id="ObRZHOUU20YytfQC5N38dW">详情</button><button class="link" data-page-node-id="UTKrI6ZnGfh7W6Hsg9LpG4">备注</button></td>
+              </tr>
+              <tr data-page-node-id="Aipa0FV90wEPW3bsqV1LhG">
+                <td data-page-node-id="R0Iibotzaw9SvgJ6ul38FE">20260925…011<br data-page-node-id="Yngm2BTP168OxBUH5qfKDN"><span style="color:var(--muted)" data-page-node-id="l4dr0lc1bmuoswY7lE9FwA">09-25 09:40</span></td>
+                <td data-page-node-id="fGoDIds2uZG8bhQtLcv1OA">广州天河店</td><td data-page-node-id="qrwQddZiWqyK1aBCxHXuqr">李女士 137****9900</td>
+                <td data-page-node-id="EopPCWwZ6QiNAFW0GNifOf">¥88.00</td><td data-page-node-id="khddPye33NHd0SpuNnVIiO">—</td>
+                <td data-page-node-id="dfHmIiuRhe87YBjkjyjZtz"><b data-page-node-id="uBR3GrHgA4ZLNuSwLtQn1h">¥88.00</b></td>
+                <td data-page-node-id="HI4E54aiZ2PRb5KqVCkhgK"><span class="tag gray" data-page-node-id="3z2HjaO3MvyioE1mSnW65T">支付宝收款</span></td>
+                <td data-page-node-id="P0CGno6eZKddCzgwLI4pnQ"><span class="tag ok" data-page-node-id="nXE0l9w494AUpvnkqmbp2F">已完成</span></td>
+                <td data-page-node-id="HqcZ7QZo9loPiuOWQs6WOm">+88.00</td>
+                <td data-page-node-id="6TiuxImRf33yGuW25RMjiK"><button class="link" data-page-node-id="HUiaWTmIpxtXHF86yqIpRL">详情</button><button class="link" data-page-node-id="cg1ugWaNsReo9bhhcCA41I">备注</button></td>
+              </tr>
+              <tr data-page-node-id="Zx65ew5j5b8P4uj7LcDzC0">
+                <td data-page-node-id="CpSJJqFSpugU7NlzeJoY72">20260925…009<br data-page-node-id="EFGBvaVdZQJ9Km7OKXJcG6"><span style="color:var(--muted)" data-page-node-id="hNvqcXNkBEtSzmH4Nzg1C8">09-25 09:12</span></td>
+                <td data-page-node-id="dQn1cxrYYCpwlOEojuV0aK">佛山禅城店</td><td data-page-node-id="NwWaiBSsqTCIFRJJnRaTed">陈先生 139****2210</td>
+                <td data-page-node-id="MAqLkgv9I6KWxryVzANKKU">¥42.00</td><td data-page-node-id="fw0VyoxyraCHMpQo3jdmC1">—</td>
+                <td data-page-node-id="3K2cxRWPtGJbvwOwYCTD3E"><b data-page-node-id="VbjyP7i8dvoCKIVUBUyT03">¥42.00</b></td>
+                <td data-page-node-id="eb1Mk4v22k9BHAfTp2DqqU"><span class="tag gray" data-page-node-id="hN5YCayON2SItzJqdMzpXz">现金收款</span></td>
+                <td data-page-node-id="WtCxycUPuL5RMXENEwEEhH"><span class="tag warn" data-page-node-id="GXHTwh4SQdBayyMJCc08c4">待收款</span></td>
+                <td data-page-node-id="SoGB5m4UAlrO9nbWvjW4Dc">—</td>
+                <td data-page-node-id="xhfKakJrup3Q25qne9xAYK"><button class="link d" data-page-node-id="WDjCB8R4vGgGvn1bNTGXHo">作废</button><button class="link" data-page-node-id="rnY5FNZha3ggGyXqlvjEJl">备注</button></td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="pager" data-page-node-id="qq6IvCJboFfXTzx8yvrVW6">共 9 条<span data-page-node-id="Q4pShXKAy3U0MpIJdGejHw">‹</span><span class="on" data-page-node-id="iHCI0ZvpJm9ZjYUYh7rvNK">1</span><span data-page-node-id="CGYkAOQ2qfEozxjJ2IVZuD">›</span></div>
+        </div>
+        <div class="notice" data-page-node-id="s4NWHuNlVCsBxOBj2g5Ye1">规则提示：已收款订单不可作废、不可退款（PRD 6.5）；待收款可作废且不产生余额/积分/券变动；订单页按数据权限过滤——店长看本店、租户管理员看全部门店。</div>
+      </div>
+
+      <!-- ============ 优惠券管理 ============ -->
+      <div class="page" id="pg-coupon" data-page-node-id="s4Z8z6xctraLBuNAqEgfLE">
+        <div class="panel" data-page-node-id="jMXg674dMrseImDVH9rlKV">
+          <div class="toolbar" data-page-node-id="WuKUbFZFoIYFF2OHkDOcfr">
+            <select data-page-node-id="ntFCWvlecrSdgq56VxR7D0"><option data-page-node-id="BZDt9O5tJUhrIDsNGFR9d8">全部门店</option><option data-page-node-id="cRZHeZLJOqn2OP8tzYB9Ka">佛山禅城店</option><option data-page-node-id="aocHQAapcgqnNK4zbUqaii">广州天河店</option></select>
+            <select data-page-node-id="bOIB9bmf06UZelFujFqJfS"><option data-page-node-id="EHCTUY424pzIbeejSlfbm5">全部类型</option><option data-page-node-id="QFAwIAuE1Wdv6kfDjiEhpm">满减券</option><option data-page-node-id="ajhSyGE2ON7xl7l6AjwrqD">折扣券</option></select>
+            <select data-page-node-id="HYXBNUYvcm1KS4caDNA55y"><option data-page-node-id="wsR7WiQmgdupaoezVIGBWV">全部状态</option><option data-page-node-id="rS7UrL2LcKfOxyQzssX5Fw">上架中</option><option data-page-node-id="6Rnv2wXeBw83qmnr0TpP68">已下架</option></select>
+            <button class="btn btn-p" onclick="openDrawer()" data-page-node-id="rekmfZif5CMYOJtQw9KS7N">＋ 新建优惠券</button>
+          </div>
+          <table data-page-node-id="WSJpe9YNHbxXbSPE3p3HKH">
+            <thead data-page-node-id="QlxLc4gptA4X9FeWGaBrFo"><tr data-page-node-id="WFpAMprGvWpFApyGAzR5KB">
+              <th data-page-node-id="aZOZosE4WwWDETSBfzr9h4">券名称</th><th data-page-node-id="slNjjX6sSyMCiZdyblvbLU">门店</th><th data-page-node-id="262eFdVMgAC1OCWSgL8NoD">类型</th><th data-page-node-id="npxSRnKnHJsTWbFVqcm6WK">优惠内容</th>
+              <th data-page-node-id="qtWUES6JxXq7YP7Sebmmoq">所需积分</th><th data-page-node-id="VHlyzfX6hGPPfOzQwtEFY7">已兑 / 总量</th><th data-page-node-id="9Y6gToAFnDdas6q9szuS45">有效期</th><th data-page-node-id="mH1NykoJ3EeLNYD7munrMv">状态</th><th data-page-node-id="hBpoacqAKHCJ40884Hdh3k">操作</th>
+            </tr></thead>
+            <tbody data-page-node-id="ZyOPHh3GwBiqxUu4A5OsNf">
+              <tr data-page-node-id="VQxslXVCWzedRZfkEDfGpC">
+                <td data-page-node-id="9wP7C9fTLTcroexpS61gdO">满50减10</td><td data-page-node-id="pyuDO7NsRNRADjwKbLQDig">佛山禅城店</td><td data-page-node-id="3SYzlx3yi3XoCFCRV4cbO1"><span class="tag ok" data-page-node-id="qD486Y6RlHh0M9xb4NLAcJ">满减</span></td>
+                <td data-page-node-id="3isJg4W6HAblEkLAfvvl00">满 ¥50 减 ¥10</td><td data-page-node-id="FiLf0QXVFkijrKRCZ7whfv">30.00</td><td data-page-node-id="w2q8xvpmuE0RPjZrmv8eah">12 / 100</td><td data-page-node-id="tPfbzF3Jo1OA8hwoWAQnz5">兑换后 30 天</td>
+                <td data-page-node-id="IFaT9ETcjAl4yNVRRMEeur"><span class="tag ok" data-page-node-id="uRPX7orHzsLNvYk9bln2fR">上架中</span></td>
+                <td data-page-node-id="zuMFCHoe0lXfKL0SRwI99H"><button class="link" onclick="openDrawer()" data-page-node-id="oOkHmH3jw74XmXAizYmHSX">编辑</button><button class="link d" data-page-node-id="m8o10L3a9YW2z9v7IMeF8C">下架</button></td>
+              </tr>
+              <tr data-page-node-id="eX13Dur5IDLWc8aaSYs4h8">
+                <td data-page-node-id="5ukutsj3csJ6xNFi01HPtO">会员日 8 折</td><td data-page-node-id="nxByWhPRPp836vPbRffQQl">佛山禅城店</td><td data-page-node-id="1j6QENADbmIDyyp2NOJdme"><span class="tag blue" data-page-node-id="dEUaOGfoAe5TZjONWmQ25Z">折扣</span></td>
+                <td data-page-node-id="JXV8CTgfAvTzFSKnr7rtxd">8 折 · 封顶 ¥30</td><td data-page-node-id="6ZltsLgYDZn2yQqHX9kw1V">50.00</td><td data-page-node-id="JnMFxvQDXyU2LS53tPzARY">5 / 50</td><td data-page-node-id="PVlL437z2zmim3p76ogNqO">兑换后 30 天</td>
+                <td data-page-node-id="cNoweEWwaHt3SS7tmsYMOq"><span class="tag ok" data-page-node-id="rH2p1eR6zi9QKCgoSMWcSR">上架中</span></td>
+                <td data-page-node-id="5o903nWenYGvEnTxNCORGL"><button class="link" onclick="openDrawer()" data-page-node-id="PPeGL2mBpIetFBjZBfr8xH">编辑</button><button class="link d" data-page-node-id="mc2H70DSC9XOb6u2IbcyxV">下架</button></td>
+              </tr>
+              <tr data-page-node-id="EBV2vYmx89opVg6tDkqIFe">
+                <td data-page-node-id="Wyf2HyZxKfAZp8nMyS4Toh">开业满减</td><td data-page-node-id="4GIEG7VXWZo0aJ3vk8CXWe">广州天河店</td><td data-page-node-id="x2YSR8pwwVBKkFUu7kmeGM"><span class="tag ok" data-page-node-id="3oMTziheKK2DGlTzxEel7l">满减</span></td>
+                <td data-page-node-id="zZXomANgOlGtAKw0LBpNso">满 ¥100 减 ¥20</td><td data-page-node-id="1JUB8Rp2YUpXsGNXBby6jd">60.00</td><td data-page-node-id="S2K9gvG4npCtwjq0H1P5P5">100 / 100</td><td data-page-node-id="11o9fOBARt25RBiNWjZPFZ">兑换后 15 天</td>
+                <td data-page-node-id="ps60V5TBA0M84aJKZKFwqE"><span class="tag gray" data-page-node-id="e11cVVzGJ5p8w9A7lnF1sy">已售罄下架</span></td>
+                <td data-page-node-id="CS5UEuUvsIGhzBCsI963DQ"><button class="link" onclick="openDrawer()" data-page-node-id="HPDsp4qAdXyaENEHI3A01R">编辑</button><button class="link" style="color:var(--ok)" data-page-node-id="0hWUVTKHJE2ZFoeOInjlQq">上架</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="notice" data-page-node-id="Vvwn3u9IsHKh3JBGPQPbGG">规则提示：券为门店级资产（各店独立配置发行）；下架后商城不可见、已兑换的继续可用至过期；售罄自动下架（PRD 5.2.1）。</div>
+      </div>
+
+      <!-- 新建/编辑券 抽屉 -->
+      <div class="drawer-mask" id="drawerMask" onclick="closeDrawer()" data-page-node-id="P1rDf53ccaao5SFEl7EGHz"></div>
+      <div class="drawer" id="drawer" data-page-node-id="bEJzmPa3awRvdviMhQTTOg">
+        <div class="d-head" data-page-node-id="AkIvjGKrIi3gzJheihq4gt"><span data-page-node-id="OqyyFS18FmFKnoRw8z9UG3">新建优惠券 · 佛山禅城店</span><button class="link" onclick="closeDrawer()" data-page-node-id="yjIwpfgCLDrQVoCFayefAy">✕</button></div>
+        <div class="d-body" data-page-node-id="OqJH1We0NaKo1JcDMGPwLZ">
+          <div class="field" data-page-node-id="qkuOe5aOpV453CKXnSG4wj">
+            <label data-page-node-id="K3NqCgD5COvapvGqKNvaA0">券名称 <span class="req" data-page-node-id="wJ1Yr8wfQkhns5bBgYKEfl">*</span></label>
+            <input type="text" value="周年庆满减" maxlength="20" data-page-node-id="GwLDLW25RwFvV4w9QiMnPv">
+          </div>
+          <div class="field" data-page-node-id="ULXL0AZ82aDGPJKPDY7zY2">
+            <label data-page-node-id="xBlLQ9pHiLk1TPG56DBsi8">券类型 <span class="req" data-page-node-id="IOPshAGx7jtZhfkAlWXpkY">*</span>（切换后下方字段联动）</label>
+            <div class="seg" data-page-node-id="eixDcgEfKCn7ltUrlliV89">
+              <button class="on" id="segMJ" onclick="switchType('mj')" data-page-node-id="HL8HN2CWjscCC295dGWcGS">满减券</button>
+              <button id="segZK" onclick="switchType('zk')" data-page-node-id="hqWFdVDMk9Pm5qTPQPBfIv">折扣券</button>
+            </div>
+          </div>
+          <!-- 满减字段 -->
+          <div class="subform" id="formMJ" data-page-node-id="X2LK5XN9Z1QhhgBEh2j25L">
+            <h4 data-page-node-id="r6qCSAGvCwwBoSjBHSKjK0">满减规则</h4>
+            <div class="frow" data-page-node-id="950OlDmSC5u6krsHgdyYlu">
+              <div class="field" data-page-node-id="9hRL6aLw92cwq0hbvIfZMO"><label data-page-node-id="SFbAcuqQfVX5YiNHWLyWNt">使用门槛（满）<span class="req" data-page-node-id="GOTDsTmtAVRxQTR8eb8cF5">*</span></label><input type="number" value="200" data-page-node-id="eTBrS6JySHin3a0WtIb8n7"></div>
+              <div class="field" data-page-node-id="9yYqVRZWAXgliS07KlYF19"><label data-page-node-id="X9irWf2190aY42nsaXqoC1">优惠面额（减）<span class="req" data-page-node-id="JAibKwjlS5HlQnE1PYqFvw">*</span></label><input type="number" value="30" data-page-node-id="EIuXdA9TX2bsZJWJaEi29F"></div>
+            </div>
+            <div class="field note" data-page-node-id="o1dczuxpNAKGIXA2V9Phwj">校验：面额 &lt; 门槛（保证不存在 0 元单，PRD 5.3.1）</div>
+          </div>
+          <!-- 折扣字段 -->
+          <div class="subform" id="formZK" hidden="" data-page-node-id="rcDTBpy0u713uoJvVdpr8Y">
+            <h4 data-page-node-id="l4ypRQR6ELBFUmQMKIsCQS">折扣规则</h4>
+            <div class="frow" data-page-node-id="EOhJnReaT10BZRwBQVvNPh">
+              <div class="field" data-page-node-id="FRXecUCMbEz6GNpUyqYQGB"><label data-page-node-id="1OVyyaY2xt6LzsRdrFkUwM">折扣率（1–99，对应 1–9.9 折）<span class="req" data-page-node-id="OGI7DyR3tUabYoEkOoa9xq">*</span></label><input type="number" value="80" data-page-node-id="PGlTgBfAt1oBZvxCjonvhw"></div>
+              <div class="field" data-page-node-id="oh7eBgTEdx9xqBr60h5Yhu"><label data-page-node-id="fXc7HAhix1LQfDEd7lvVhE">封顶金额（0 = 不封顶）</label><input type="number" value="30" data-page-node-id="EBiTyEhlrH1pIbjHHaBegt"></div>
+            </div>
+          </div>
+          <div class="frow" data-page-node-id="YCixFJJkCypbRlmnwQPRq6">
+            <div class="field" data-page-node-id="TJYYwbUJuJcKjwoe2vZAXH"><label data-page-node-id="ej6L1hRYbdTgS9nvExgnUO">兑换所需积分 <span class="req" data-page-node-id="51HBjLsWZzRyBdV5qA9k6g">*</span>（两位小数）</label><input type="number" step="0.01" value="45" data-page-node-id="wcrIZL0zxlq66xr1oyiZuA"></div>
+            <div class="field" data-page-node-id="vL3kmLGyMdUANnd7eHjt56"><label data-page-node-id="7g2moEqoREboHFC2b9M7kN">发行总量 <span class="req" data-page-node-id="c8oFeoxHu6troPblTuuHAc">*</span></label><input type="number" value="50" data-page-node-id="nNV45hJMx3kAbp12icbuFj"></div>
+          </div>
+          <div class="frow" data-page-node-id="2kCp8iXjBP6eDBseAcYgTS">
+            <div class="field" data-page-node-id="MuH5Dr8agiDguyVBDOxoVe"><label data-page-node-id="BqiljIvOxqwLffGBldAsUI">每人限兑 <span class="req" data-page-node-id="qKLdx3aplZpeYLJYeD64n6">*</span></label><input type="number" value="2" data-page-node-id="gmNQIrmBgU5JQYZAro5yEV"></div>
+            <div class="field" data-page-node-id="Nq8jP4FXxIJvtgIBx6m7av"><label data-page-node-id="DHSGcDW2ECAub6KnO1IRdS">有效期（兑换后 N 天）<span class="req" data-page-node-id="HHtjcH1y9auX6N24NL3hOo">*</span></label><input type="number" value="30" data-page-node-id="tLxdMqC4BsLxVNE1B5KhEk"></div>
+          </div>
+          <div class="field" data-page-node-id="eILFzvHXMZBwdVFHTsDkuo">
+            <label data-page-node-id="6UhumwKs2Z7QEbav9PNmIB">状态</label>
+            <div class="seg" data-page-node-id="PBulMI1rQ19N8iGGaUCNZu"><button class="on" data-page-node-id="NBCQSdArt9RWx7dga8OLdn">上架</button><button data-page-node-id="LZfEeAbnKOCCEyQoI3VGHA">下架</button></div>
+            <div class="note" data-page-node-id="3Na4DY9kDCrw83bbTc8Ed2">下架后积分商城不可见，已兑换的券不受影响</div>
+          </div>
+        </div>
+        <div class="d-foot" data-page-node-id="QY7ZdHu9QMljjkYvEpjuj1">
+          <button class="btn btn-o" onclick="closeDrawer()" data-page-node-id="bdTxISyLZgE9Dice0yxrMu">取消</button>
+          <button class="btn btn-p" onclick="closeDrawer();toastMsg('已保存：券模板为门店级，顾客端商城即时可见')" data-page-node-id="aBUpWMjEzyPB7ffa6MARId">保存</button>
+        </div>
+      </div>
+
+      <!-- ============ 充值流水与冲正 ============ -->
+      <div class="page" id="pg-recharge" data-page-node-id="D9i0ISG6IejFPPdUeYJRPI">
+        <div class="panel" data-page-node-id="GYqe2xrZ39pRqkTDLMPNM8">
+          <div class="toolbar" data-page-node-id="30kTCobR1JrSr0c9zDasUO">
+            <select data-page-node-id="7vRD10RaCbPHwSFvsyxtwq"><option data-page-node-id="qcWDDYDU11bpCeCBbYCjAF">全部门店</option><option data-page-node-id="WR3ZGNou7aeKx6KCstRArv">佛山禅城店</option><option data-page-node-id="8CV8w4UrrQWUFaZj315qwb">广州天河店</option></select>
+            <input type="date" value="2026-09-25" data-page-node-id="zAnUuLYUalHX7GFiUORozt"><span style="color:var(--muted)" data-page-node-id="ObdAzGgKXU3uQzVlIcQO45">至</span><input type="date" value="2026-09-25" data-page-node-id="VU20EuR0CU2nEsxQ3iOMTU">
+            <select data-page-node-id="9yiMBnNuhMEVGh8fonHZji"><option data-page-node-id="JNEm7rfVH1IghkFyGJfA7G">全部方式</option><option data-page-node-id="Ar1RpnuYOaXODHtCCQeBqR">微信收款</option><option data-page-node-id="gWL6EmIZHVsCoJBUREB4Qn">支付宝收款</option><option data-page-node-id="2CYYxrZykmgKqgzIt7XwIn">现金收款</option></select>
+            <input type="text" placeholder="会员手机号" data-page-node-id="Lm7PIlAczFqVhU1jRXiiBR">
+            <button class="btn btn-p" data-page-node-id="8QjBTRudNWoRfSeUQ7ehIP">查询</button>
+          </div>
+          <table data-page-node-id="iu701HvxoLJhdiaSYzgeHc">
+            <thead data-page-node-id="WwsAUuMksM18hCZ4lh6N3K"><tr data-page-node-id="jaqqt9RLm9BRphTfSx1uUw">
+              <th data-page-node-id="eVIdmhKjuqoouTbgRnB8Yt">流水号 / 时间</th><th data-page-node-id="pAUEV3xNxsjgsHUX17hU9i">门店</th><th data-page-node-id="f6VlvfP5juDJbjVxrhqDRr">会员</th>
+              <th data-page-node-id="AoJ7BhmCwMZic584Y00TuP">充值金额</th><th data-page-node-id="2obnFthwJCXLLKfOW1IWzG">赠送金额</th><th data-page-node-id="wYZJb0JPjrpS7l9AyCq884">到账合计</th>
+              <th data-page-node-id="lQwoszEOKiXWAuAgFDCBB4">充值方式</th><th data-page-node-id="vCbsed9wbKo9RWWGrmk9lB">操作店员</th><th data-page-node-id="FYXujgAPqQfN5TAJlc5zNj">状态</th><th data-page-node-id="xbNRjLc7hwdMmFIWaoA7v4">操作</th>
+            </tr></thead>
+            <tbody data-page-node-id="EC0xuxJUyAkskZZUANtnI9">
+              <tr data-page-node-id="wYZ3uuZEU8s97CO0eIpr3n">
+                <td data-page-node-id="3N9hQp8XDw2nm1pfbAPPCU">RC20260925…007<br data-page-node-id="0BnYRGsilqHyysWPXKPhfT"><span style="color:var(--muted)" data-page-node-id="kNfEhnTHGgqXV9jElRL94a">09-25 10:20</span></td>
+                <td data-page-node-id="5EDdXQCaPbyJM3T1kMmuSj">佛山禅城店</td><td data-page-node-id="eLNIrEWQhnMWoStj0dZAwo">王女士 138****6688</td>
+                <td data-page-node-id="t6AvceggfGam7Q77paerHR">¥100.00</td><td data-page-node-id="P83ItmDTlcEwwpTdppWnvS">¥10.00</td><td data-page-node-id="WrYKrTUufThHVLsRXhCrJE"><b data-page-node-id="rqtr4YpGWBe5roK7tnNoAV">¥110.00</b></td>
+                <td data-page-node-id="7YdZzFeDKXYHFUCo2wTUEm"><span class="tag blue" data-page-node-id="HvPpdXHjjOW3z4mCmInWJv">微信收款</span></td>
+                <td data-page-node-id="8QBglwUDln6VifnDUFk5ag">小李</td>
+                <td data-page-node-id="YJR3mwMsqhOTL3AOJuLoGO"><span class="tag ok" data-page-node-id="z8in8fJ4wY7EL1jEqDtKba">有效</span></td>
+                <td data-page-node-id="UghcFjDGJ2ktErrmGIAzwH"><button class="link d" onclick="openReversal(this)" data-page-node-id="4ch1QhyLBU7qSaAnQnLlDm">冲正</button></td>
+              </tr>
+              <tr data-page-node-id="vqRT8OIyUkAB6SvVTpdEvk">
+                <td data-page-node-id="uXbwi2IC63NJWZen6BqQmV">RC20260925…006<br data-page-node-id="ep4ffHyR6725Ez5raM57MH"><span style="color:var(--muted)" data-page-node-id="5YLpDQAQMQmxraHVFkMh54">09-25 09:55</span></td>
+                <td data-page-node-id="3KE6gTS0bjOxhDROvSRxSi">佛山禅城店</td><td data-page-node-id="8Qwj25QarZ0G7lZsruki7e">陈先生 139****2210</td>
+                <td data-page-node-id="mEmylh1Gd2mwabtTeT1aCB">¥200.00</td><td data-page-node-id="XDGCwZdVTzwDgVl98mWOUt">¥0.00</td><td data-page-node-id="K56uUD2W0TFOkggCLavaJ6"><b data-page-node-id="gGsTg9nJgBJsLEJrCpW6Kk">¥200.00</b></td>
+                <td data-page-node-id="fdPwK9xY1lRNajBTPwWE4j"><span class="tag gray" data-page-node-id="RpNq5tShAdbXrI48QolgEk">现金收款</span></td>
+                <td data-page-node-id="Gckcghzd5NumnZghQlng8r">小李</td>
+                <td data-page-node-id="NJNaijDO4m4BEvaGBEmQM2"><span class="tag ok" data-page-node-id="j7vIX2eExlnHPMziDKFWA3">有效</span></td>
+                <td data-page-node-id="rHG4fCI1CZos19kbuEnKrY"><button class="link d" onclick="openReversal(this)" data-page-node-id="prNniJDgzpkfHU7dgtVvD4">冲正</button></td>
+              </tr>
+              <tr data-page-node-id="aD0HvbX746uPEU0lqBR7r0">
+                <td data-page-node-id="WH8OU40Rr84feR5HCS2hVG">RC20260924…005<br data-page-node-id="eO7VS1BoCXe61Q3ly1Rmz0"><span style="color:var(--muted)" data-page-node-id="tlIWRhVaQbNAPlJzdWG1kd">09-24 18:30</span></td>
+                <td data-page-node-id="r13SsUY9usqJN77RIQL0Sv">广州天河店</td><td data-page-node-id="4M30hUtZEHPVQe7HeFLmNA">李女士 137****9900</td>
+                <td data-page-node-id="kbBZzkWVVCh3FN6vAHFZXT">¥500.00</td><td data-page-node-id="trukNTyIOpCtJnTJ3K2jNG">¥50.00</td><td data-page-node-id="fxiByPJAt8tmD21TyyKDeQ"><b data-page-node-id="NkKaJmJvebgXAemTDYk3JJ">¥550.00</b></td>
+                <td data-page-node-id="clZta3aZKC0FGclXFob0do"><span class="tag blue" data-page-node-id="xEksDEr72LHCQjOuFJkyuE">支付宝收款</span></td>
+                <td data-page-node-id="1YNqCFcb0u6txZP9OEKYPg">阿May</td>
+                <td data-page-node-id="ES4N8FyJY3GXbA4uVmcNDF"><span class="tag danger" data-page-node-id="FbLEtcTmI5PqrArJRRovkj">已冲正</span></td>
+                <td data-page-node-id="9LvT0ZLlHDOWQFvIaCsIy6"><span style="color:var(--muted)" data-page-node-id="kPEHtVBwsWL2KDvHsNFmvz">09-24 录错金额，店长冲正</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="notice" data-page-node-id="2SCg3110D0ixa64MjBU0vP">冲正规则（PRD 5.1.2 / 6.6）：仅管理台可冲正，小程序无入口；仅限当日流水；按 RuoYi 菜单权限授予（有权限即可，不限店长，无需租户管理员审批）；冲正生成负向余额流水并记录原因。</div>
+      </div>
+
+      <!-- 冲正弹窗 -->
+      <div class="modal-mask" id="reversalMask" data-page-node-id="3IV9WLj1lHDEF2RQjLTlnN">
+        <div class="modal" data-page-node-id="RbikvDCqtJiIU44BTwMJXs">
+          <h3 data-page-node-id="TjzyDdhSgdNWg6h1iTGBP9">充值冲正确认</h3>
+          <table style="margin-bottom:12px" data-page-node-id="V5tXsa2YXXWWIWj0HUDEG4">
+            <tbody data-page-node-id="B2P1sdtbBDBh9yVc8OA32K">
+              <tr data-page-node-id="yz0bGrwZXx66Cl4PfeH6XN"><td style="border:none;color:var(--muted)" data-page-node-id="33UHDCzFbo7GksK1L5R8Da">流水</td><td style="border:none" id="rvRow" data-page-node-id="NGHcepXpf0wN7GA8KReLIE">—</td></tr>
+              <tr data-page-node-id="EWUjOowD8ccEGsfRHFG8ig"><td style="border:none;color:var(--muted)" data-page-node-id="lF9ayXyIXxGxDpBCjwo4pP">冲正动作</td><td style="border:none" data-page-node-id="rBvhvfNYZdsTJk6vK9zr3T">会员余额 <b data-page-node-id="FjHbu6ESnxlQTOYwGXezUW">−¥110.00</b>（负向余额流水）</td></tr>
+              <tr data-page-node-id="Nt5H8eCwu2RDyvVm2J5Aiq"><td style="border:none;color:var(--muted)" data-page-node-id="ghDELaM9Y7j1NDNM9rGB1I">限制</td><td style="border:none" data-page-node-id="Xn6CidQnMzYcMritEJPtj0">仅限当日 · 会员余额不足时冲正失败</td></tr>
+            </tbody>
+          </table>
+          <div class="field" data-page-node-id="MHnaCuWBkiLBKHMEbVtAZ9">
+            <label data-page-node-id="iMkF4mFaaGWxXSFIK0VBAo">冲正原因 <span class="req" data-page-node-id="xOFsZRgauSQPnB2CRZkRPD">*</span>（必填，记入冲正流水）</label>
+            <textarea rows="2" placeholder="如：顾客实际未支付，店员误确认到账"></textarea>
+          </div>
+          <div class="d-foot" style="border:none;padding:0" data-page-node-id="kdILy4tQEqFkZZhrt9cfUj">
+            <button class="btn btn-o" onclick="closeReversal()" data-page-node-id="ncgyVWfLd9XitgUINaXsew">取消</button>
+            <button class="btn btn-d" onclick="closeReversal();toastMsg('已冲正：余额 −110.00，流水状态 → 已冲正')" data-page-node-id="O94PbX2mF3AN3GgpXJIYzo">确认冲正</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ 会员管理（轻量：字段验证用） ============ -->
+      <div class="page" id="pg-member" data-page-node-id="10M9WIbBmtSCyRxsINkiVB">
+        <div class="panel" data-page-node-id="z7J5quE4cUMUs22bxXGNtc">
+          <div class="toolbar" data-page-node-id="IZRZC85anH9h7KrGmSAcH9">
+            <select data-page-node-id="HKXjbxXSUpwqq03wfGmfan"><option data-page-node-id="Y0YMnQ6Vf8DIfOW96cvFMr">全部门店</option><option data-page-node-id="vCNy4DJhRJCmUuREXfSz5F">佛山禅城店</option><option data-page-node-id="HhiBEjuQtUvlJPyMAM4HeQ">广州天河店</option></select>
+            <input type="text" placeholder="手机号 / 卡号 / 昵称" data-page-node-id="PXAcm06pDDo88QHozqDGtH">
+            <button class="btn btn-p" data-page-node-id="FcKCq4TPHCHLLgwEZeBmmU">查询</button>
+            <button class="btn btn-o" onclick="toastMsg('线下登记建档：手机号必填（本店唯一），open_id 留空，顾客日后微信登录按手机号合并档案')" data-page-node-id="ImlZCAhyZrVzzvcSYhP5DN">＋ 线下登记会员</button>
+          </div>
+          <table data-page-node-id="mw07gK63mmiTBJGxJHtf3i">
+            <thead data-page-node-id="uXQf1w25Kv26tCI1IFtbf2"><tr data-page-node-id="8JakGY121pbgDoEKoWu4FC"><th data-page-node-id="USb1eLGGyAoFCSRuoo93q6">会员</th><th data-page-node-id="SZne0AOJEraCpMPrbJNJ2S">门店</th><th data-page-node-id="xYKFQcuRsL0V68dzyqWYmt">卡号</th><th data-page-node-id="d4O1FAc9HYrF94LaUBvBkZ">余额</th><th data-page-node-id="bqRxMMjz3dusVtH7mYGG1O">积分</th><th data-page-node-id="yyyJzDdywYuTCBm3evEXab">微信绑定</th><th data-page-node-id="Fyuloio429VZBnGwn2CyEv">累计消费</th><th data-page-node-id="1P3kyJ2ZiXFc0xw8JDhrcM">开卡时间</th><th data-page-node-id="02HX2SilVgoRndPgobQjkY">操作</th></tr></thead>
+            <tbody data-page-node-id="wBfIYegGYZ47nvzSGtiOFr">
+              <tr data-page-node-id="rwPAfpRPCWbyURAcZ1EWFZ"><td data-page-node-id="AXldRZhYloC04mF5YIRES4">王女士 138****6688</td><td data-page-node-id="YMdLIptFgeIzBcVzmwZ23Z">佛山禅城店</td><td data-page-node-id="lbpcUFxxdcjMYkimdP6Qip">8800 0021</td><td data-page-node-id="ID3NLh6yslhbh9EU4ykwYK">¥196.50</td><td data-page-node-id="T4FIDoajoJUrIkKGgGfXjM">86.50</td><td data-page-node-id="Tz3bM81GmGbRTdvtfFyp8x"><span class="tag ok" data-page-node-id="BtmU1TiVZkpCJqKBay8GGU">已绑定</span></td><td data-page-node-id="TSMPB1SE37RK2DZ1Dus2vS">¥1,286.00 / 12 次</td><td data-page-node-id="GUyNJqpygORkaVWjhzsdt4">09-10</td><td data-page-node-id="XH0UzgfP3zFH11exzZCFgS"><button class="link" data-page-node-id="1W0WudUt5GtLfJRgGDLbxm">详情</button></td></tr>
+              <tr data-page-node-id="DRbCTSewXnErTkYzgQ3mDr"><td data-page-node-id="9zZsAFwEYHdgRtFVRiDS18">陈先生 139****2210</td><td data-page-node-id="X4vzneCej8h8rB78GE6v6A">佛山禅城店</td><td data-page-node-id="3TWmPFYsVplbHUwk28Hn9S">8800 0022</td><td data-page-node-id="Uo5WEF3ckoGHmr83PCBd7U">¥0.00</td><td data-page-node-id="FFxoUevbNkT1cJt2UD50fh">12.00</td><td data-page-node-id="saNKC6VgI7nDErkuAKNWgG"><span class="tag gray" data-page-node-id="QITNnf1gxoynj5mnlMq9BS">未绑定</span></td><td data-page-node-id="c5PF0PCGOV4aRfaylyIkqc">¥42.00 / 1 次</td><td data-page-node-id="v0w25X5Vahx98ABT5g7RFx">09-21</td><td data-page-node-id="D5PCCxYjehsESTsE64K16O"><button class="link" data-page-node-id="0YetUcP3UzlISGcVLLLhHG">详情</button></td></tr>
+              <tr data-page-node-id="nF3k0expvTCnKUVyuogZrq"><td data-page-node-id="ZgZLCVu6Flsq9oCfdDkfm7">李女士 137****9900</td><td data-page-node-id="n92Ix08B2XzPXIKzNwRebY">广州天河店</td><td data-page-node-id="48xMF0vW3lpwV4KkFoYHG9">8801 0007</td><td data-page-node-id="tsfsv2DvK52YnLxIw7mcr8">¥550.00</td><td data-page-node-id="eqRVBdWepqnm718CZ4L4oS">130.00</td><td data-page-node-id="8BWEGEy91amw81ADKAYH53"><span class="tag ok" data-page-node-id="aFZ49sPLiNrsHU1CBacWFN">已绑定</span></td><td data-page-node-id="zBllbIVQxavw0BKsK46dvj">¥2,050.00 / 18 次</td><td data-page-node-id="BMurIxJopLTAvYvatNSq4j">09-02</td><td data-page-node-id="PVOSlt9QBtueeSEA8T4Ac1"><button class="link" data-page-node-id="0MsHjGXp68djDtcswUEyfh">详情</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="notice" data-page-node-id="qfI4cKZmoRGc1ewgVfGAOb">唯一约束 (tenant_id, store_id, mobile)：同店手机号重复时提示跳转已有档案；同一手机号在 A、B 两店是两个独立会员（PRD 5.1.1）。</div>
+      </div>
+
+      <div class="toast" id="gtoast" style="position:fixed;left:50%;top:60px;transform:translateX(-50%);background:rgba(0,0,0,.75);color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;display:none;z-index:99" data-page-node-id="7t7AQUvkETICsMDbqzlQym"></div>
+      <p class="doc-note" data-page-node-id="btpnfjqj82JBHjCL2znSzd">管理台本期自研页面共 4 个（订单 / 优惠券 / 充值冲正 / 会员），会员页为轻量查询页用于字段验证。门店、员工、角色、租户、登录等均为 RuoYi-Cloud-Plus 框架原生页面，不出原型。</p>
+    </div>
+  </div>
+</div>
+
+<script>
+function showPage(key,el){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+  document.getElementById('pg-'+key).classList.add('on');
+  document.querySelectorAll('.m-item').forEach(m=>m.classList.remove('on'));
+  el.classList.add('on');
+  document.getElementById('crumbCur').textContent=el.textContent.trim();
+}
+function toastMsg(t){const e=document.getElementById('gtoast');e.textContent=t;e.style.display='block';clearTimeout(e._tm);e._tm=setTimeout(()=>e.style.display='none',2400);}
+/* 券类型联动 */
+function switchType(t){
+  document.getElementById('segMJ').classList.toggle('on',t==='mj');
+  document.getElementById('segZK').classList.toggle('on',t==='zk');
+  document.getElementById('formMJ').hidden=t!=='mj';
+  document.getElementById('formZK').hidden=t!=='zk';
+}
+function openDrawer(){document.getElementById('drawer').classList.add('on');document.getElementById('drawerMask').classList.add('on');}
+function closeDrawer(){document.getElementById('drawer').classList.remove('on');document.getElementById('drawerMask').classList.remove('on');}
+/* 冲正 */
+function openReversal(btn){
+  const tr=btn.closest('tr');
+  document.getElementById('rvRow').textContent=tr.cells[0].textContent.split('\n')[0]+' · 到账 '+tr.cells[5].textContent.trim();
+  document.getElementById('reversalMask').classList.add('on');
+}
+function closeReversal(){document.getElementById('reversalMask').classList.remove('on');}
+</script>
+
+
+</body></html>
