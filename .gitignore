@@ -35,5 +35,6 @@ application-local.yml
 Thumbs.db
 desktop.ini
 
-# WorkBuddy 项目内部数据（会话/记忆，不入库）
-.workbuddy/
+# WorkBuddy 项目内部数据（会话/记忆不入库；skills 为项目级共享技能，保留入库）
+.workbuddy/*
+!.workbuddy/skills/
