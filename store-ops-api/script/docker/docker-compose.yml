@@ -1,3 +1,7 @@
+# 官方部署编排文件
+name: store-ops
+# 不轻易改动，可根据该文件新建各环境的 docker-compose.[env].yml 文件
+
 services:
   mysql:
     image: mysql:8.4.9
