@@ -3,7 +3,7 @@ spring:
   security:
     user:
       name: ruoyi
-      password: 123456
+      password: ${MONITOR_PASSWORD}
   boot:
     admin:
       ui:

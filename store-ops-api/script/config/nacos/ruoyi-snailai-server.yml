@@ -21,7 +21,7 @@ spring:
           management.context-path: ${server.servlet.context-path}/actuator
           # 监控账号密码
           username: ruoyi
-          userpassword: 123456
+          userpassword: ${MONITOR_PASSWORD}
 
 snail-ai:
   server:

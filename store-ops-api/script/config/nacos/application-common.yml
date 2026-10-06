@@ -79,9 +79,9 @@ spring:
     nacos:
       discovery:
         metadata:
-          # admin 监控账号密码
+          # admin 监控账号密码（运行期从环境变量解析，与 ruoyi-monitor.yml 共用 MONITOR_PASSWORD）
           username: ruoyi
-          userpassword: 123456
+          userpassword: ${MONITOR_PASSWORD}
     bus:
       id: ${spring.application.name}
       base-packages: org.dromara.**.event
@@ -90,7 +90,7 @@ spring:
     host: localhost
     port: 5672
     username: ruoyi
-    password: ruoyi123
+    password: ${RABBITMQ_PASSWORD}
 
   # redis通用配置 子服务可以自行配置进行覆盖
   data:
