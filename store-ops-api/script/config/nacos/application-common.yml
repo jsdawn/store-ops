@@ -98,7 +98,7 @@ spring:
       host: localhost
       port: 6379
       # redis 密码必须配置
-      password: ruoyi123
+      password: ${REDIS_PASSWORD}
       database: 0
       # 需要使用数字
       timeout: 10000

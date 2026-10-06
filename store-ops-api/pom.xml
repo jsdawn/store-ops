@@ -96,7 +96,7 @@
                 <profiles.active>dev</profiles.active>
                 <nacos.server>127.0.0.1:8848</nacos.server>
                 <nacos.username>nacos</nacos.username>
-                <nacos.password>ruoyi123</nacos.password>
+                <nacos.password>nacos</nacos.password>
                 <logstash.address>127.0.0.1:4560</logstash.address>
             </properties>
             <activation>
@@ -110,7 +110,7 @@
                 <profiles.active>prod</profiles.active>
                 <nacos.server>127.0.0.1:8848</nacos.server>
                 <nacos.username>nacos</nacos.username>
-                <nacos.password>ruoyi123</nacos.password>
+                <nacos.password>nacos</nacos.password>
                 <logstash.address>127.0.0.1:4560</logstash.address>
             </properties>
         </profile>
@@ -598,4 +598,3 @@
     </pluginRepositories>
 
 </project>
-

@@ -2,6 +2,7 @@
 name: store-ops-dev
 # 只包含最小集：MySQL 8 / Redis / Nacos。版本与 store-ops-api/script/docker/docker-compose.yml 对齐。
 # 用法：docker compose -f docker-compose.dev.yml up -d
+# 凭据：全部经环境变量注入，真实值在同级 .env（gitignored，模板见 .env.example）。
 # 注意：官方 compose 定义了 minio/seata/nginx/monitor 等 10 个服务，开发期不需要，勿全量启动。
 
 services:
@@ -12,7 +13,7 @@ services:
     ports:
       - "3306:3306"
     environment:
-      - MYSQL_ROOT_PASSWORD=ruoyi123
+      - MYSQL_ROOT_PASSWORD=${MYSQL_PASSWORD:?请在 script/docker/.env 中设置 MYSQL_PASSWORD}
       - TZ=Asia/Shanghai
     command:
       --character-set-server=utf8mb4
@@ -23,7 +24,7 @@ services:
       # 首次启动自动创建 4 个业务空库（脚本本身不含 CREATE DATABASE）
       - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-pruoyi123"]
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -p$$MYSQL_ROOT_PASSWORD"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -34,11 +35,13 @@ services:
     restart: unless-stopped
     ports:
       - "6379:6379"
-    command: redis-server --requirepass ruoyi123 --appendonly yes
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:?请在 script/docker/.env 中设置 REDIS_PASSWORD}
+    command: ["sh", "-c", "exec redis-server --requirepass \"$$REDIS_PASSWORD\" --appendonly yes"]
     volumes:
       - redis-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "ruoyi123", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep PONG"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -54,25 +57,24 @@ services:
       - "8080:8080"   # v3 控制台 UI
     environment:
       - MODE=standalone
-      # v3 无默认密码：首次启动后在控制台/接口初始化管理员密码 ruoyi123
-      # ⚠️ 不要用弱默认密码 nacos——本机曾有 Agent 应用自动探测 8848 并用 nacos/nacos 写入垃圾配置
+      # v3 无默认密码：首次启动后在控制台/接口初始化管理员密码（与 .env 的 NACOS_PASSWORD 一致）
       # admin/console/system-type 三个开关在 v3 必须显式开启，否则 8848 全部接口 500
       - NACOS_AUTH_ENABLE=true
       - NACOS_AUTH_ADMIN_ENABLE=true
       - NACOS_AUTH_CONSOLE_ENABLE=true
       - NACOS_AUTH_SYSTEM_TYPE=nacos
       # v3 镜像强制要求这三个变量（即使鉴权关闭），缺失会 exit 255
-      - NACOS_AUTH_TOKEN=c3RvcmUtb3BzLWRldi10b2tlbi0wMTIzNDU2Nzg5YWJjZGVmLUNIQU5HRS1JTi1QUk9E
+      - NACOS_AUTH_TOKEN=${NACOS_TOKEN:?请在 script/docker/.env 中设置 NACOS_TOKEN（Base64）}
       - NACOS_AUTH_IDENTITY_KEY=serverIdentity
-      - NACOS_AUTH_IDENTITY_VALUE=store-ops-dev
+      - NACOS_AUTH_IDENTITY_VALUE=${NACOS_IDENTITY_VALUE:?请在 script/docker/.env 中设置 NACOS_IDENTITY_VALUE}
       - TZ=Asia/Shanghai
       - JVM_XMS=256m
       - JVM_XMX=512m
       # 禁用 v3 的 AI 注册中心（Skill/Agent/Prompt/MCP 管理）
       - JAVA_OPT_EXT=-Dnacos.extension.ai.enabled=false
     # 釜底抽薪：3.2.3 的 AI 自带内容导入器（nacos-default-ai-importer-plugin）无任何配置开关可关
-    # （已实测 -Dnacos.plugin.ai-resource-import.enabled=false 无效，启动 40s 后仍由服务端内部批量灌入 2200+ 配置），
-    # 直接在启动前删除该插件 jar（Skill 内容也打包其中），SPI 无实现可加载，导入不再发生
+    # （实测 -D 开关无效，启动后仍由服务端内部批量灌入 2200+ 配置），
+    # 直接在启动前删除该插件 jar（Skill 内容打包其中），SPI 无实现可加载
     entrypoint:
       - bash
       - -c
@@ -83,7 +85,7 @@ services:
       mysql:
         condition: service_healthy
     healthcheck:
-      # v3 移除了 v1 readiness 接口；/v3/console/server/state 与 /v3/admin/server/state 均为 404（实测）
+      # v3 移除了 v1 readiness 接口；/v3/console/server/state 等均为 404（实测）
       # 可用的无鉴权状态端点是 /nacos/v3/admin/core/state
       test: ["CMD", "curl", "-fs", "http://localhost:8848/nacos/v3/admin/core/state"]
       interval: 15s
