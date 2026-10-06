@@ -1,28 +1,36 @@
 # store-ops 开发环境中间件（P0）
 name: store-ops-dev
-# 只包含最小集：MySQL 8 / Redis / Nacos。版本与 store-ops-api/script/docker/docker-compose.yml 对齐。
+# 端口与配置对齐 docker-compose.prod.yml：镜像版本 / 端口（3306、6379、8848、9848、9849、控制台 18080）/
+# 环境变量名（MYSQL_PASSWORD、NACOS_TOKEN、NACOS_IDENTITY_VALUE）/ JVM 参数 / TZ，全部与 prod 一致。
+# 与 prod 的必要差异（Windows 开发环境，勿对齐到 prod 的服务器专用配置）：
+#   1. bridge 网络 + 端口映射（prod 用 network_mode: "host"，Docker Desktop/WSL2 不适用）
+#   2. named volumes（prod 绑定 /docker/* 服务器绝对路径，且需 privileged）
+#   3. init-db.sql 首启自动建 4 个业务库（prod 部署时手动导入）
+#   4. healthcheck（开发期快速定位故障；prod 无）
+#   5. redis 密码由 .env 显式传入（prod 在 /docker/redis/conf/redis.conf 内）
+#   6. nacos 启动前删除 AI 内容导入器插件（v3.2.3 该插件无配置开关，实测 -D 无效）
 # 用法：docker compose -f docker-compose.dev.yml up -d
-# 凭据：全部经环境变量注入，真实值在同级 .env（gitignored，模板见 .env.example）。
-# 注意：官方 compose 定义了 minio/seata/nginx/monitor 等 10 个服务，开发期不需要，勿全量启动。
 
 services:
   mysql:
     image: mysql:8.4.9
     container_name: mysql
     restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD:?set MYSQL_PASSWORD in .env}
     ports:
       - "3306:3306"
-    environment:
-      - MYSQL_ROOT_PASSWORD=${MYSQL_PASSWORD:?请在 script/docker/.env 中设置 MYSQL_PASSWORD}
-      - TZ=Asia/Shanghai
+    volumes:
+      - mysql-data:/var/lib/mysql
+      # 首次启动自动创建 4 个业务空库（官方 SQL 脚本不含 CREATE DATABASE）
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
     command:
       --character-set-server=utf8mb4
       --collation-server=utf8mb4_general_ci
-      --default-time-zone=+08:00
-    volumes:
-      - mysql-data:/var/lib/mysql
-      # 首次启动自动创建 4 个业务空库（脚本本身不含 CREATE DATABASE）
-      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+      --explicit_defaults_for_timestamp=true
+      # prod 另有 --lower_case_table_names=1：MySQL 8 禁止在已初始化的数据卷上修改该参数，
+      # dev 卷已存在故不能追加；如需完全对齐须清卷重建并重新导入 SQL
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h localhost -p$$MYSQL_ROOT_PASSWORD"]
       interval: 10s
@@ -36,7 +44,8 @@ services:
     ports:
       - "6379:6379"
     environment:
-      - REDIS_PASSWORD=${REDIS_PASSWORD:?请在 script/docker/.env 中设置 REDIS_PASSWORD}
+      TZ: Asia/Shanghai
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}
     command: ["sh", "-c", "exec redis-server --requirepass \"$$REDIS_PASSWORD\" --appendonly yes"]
     volumes:
       - redis-data:/data
@@ -51,27 +60,28 @@ services:
     container_name: nacos
     restart: unless-stopped
     ports:
-      - "8848:8848"   # Open API
-      - "9848:9848"   # gRPC 客户端（客户端端口 = 8848 + 1000，必须映射）
-      - "9849:9849"   # gRPC 服务端同步
-      - "8080:8080"   # v3 控制台 UI
+      - "8848:8848"    # Open API（与 prod 一致）
+      - "9848:9848"    # gRPC 客户端（客户端端口 = 8848 + 1000，必须映射）
+      - "9849:9849"    # gRPC 服务端同步
+      - "18080:18080"  # v3 控制台：容器内经 NACOS_CONSOLE_PORT 也监听 18080，与 prod 写法完全一致
     environment:
-      - MODE=standalone
-      # v3 无默认密码：首次启动后在控制台/接口初始化管理员密码（与 .env 的 NACOS_PASSWORD 一致）
-      # admin/console/system-type 三个开关在 v3 必须显式开启，否则 8848 全部接口 500
-      - NACOS_AUTH_ENABLE=true
-      - NACOS_AUTH_ADMIN_ENABLE=true
-      - NACOS_AUTH_CONSOLE_ENABLE=true
-      - NACOS_AUTH_SYSTEM_TYPE=nacos
-      # v3 镜像强制要求这三个变量（即使鉴权关闭），缺失会 exit 255
-      - NACOS_AUTH_TOKEN=${NACOS_TOKEN:?请在 script/docker/.env 中设置 NACOS_TOKEN（Base64）}
-      - NACOS_AUTH_IDENTITY_KEY=serverIdentity
-      - NACOS_AUTH_IDENTITY_VALUE=${NACOS_IDENTITY_VALUE:?请在 script/docker/.env 中设置 NACOS_IDENTITY_VALUE}
-      - TZ=Asia/Shanghai
-      - JVM_XMS=256m
-      - JVM_XMX=512m
+      TZ: Asia/Shanghai
+      MODE: standalone
+      PREFER_HOST_MODE: hostname
+      JVM_XMS: 256m
+      JVM_XMX: 512m
+      # v3 无默认密码：首次启动后在控制台初始化管理员密码（与 .env 的 NACOS_PASSWORD 一致）
+      # admin/console 两个开关在 v3 必须显式开启，否则 8848 全部接口 500
+      NACOS_AUTH_ENABLE: "true"
+      NACOS_AUTH_ADMIN_ENABLE: "true"
+      NACOS_AUTH_CONSOLE_ENABLE: "true"
+      NACOS_AUTH_TOKEN: ${NACOS_TOKEN:?set NACOS_TOKEN in .env}
+      NACOS_AUTH_IDENTITY_KEY: ruoyi-vue-plus-key
+      NACOS_AUTH_IDENTITY_VALUE: ${NACOS_IDENTITY_VALUE:?set NACOS_IDENTITY_VALUE in .env}
       # 禁用 v3 的 AI 注册中心（Skill/Agent/Prompt/MCP 管理）
-      - JAVA_OPT_EXT=-Dnacos.extension.ai.enabled=false
+      JAVA_OPT_EXT: -Dnacos.extension.ai.enabled=false
+      # 控制台端口改 18080（与 prod 一致；镜像模板：nacos.console.port=${NACOS_CONSOLE_PORT:8080}）
+      NACOS_CONSOLE_PORT: "18080"
     # 釜底抽薪：3.2.3 的 AI 自带内容导入器（nacos-default-ai-importer-plugin）无任何配置开关可关
     # （实测 -D 开关无效，启动后仍由服务端内部批量灌入 2200+ 配置），
     # 直接在启动前删除该插件 jar（Skill 内容打包其中），SPI 无实现可加载

@@ -1,7 +1,5 @@
-# 官方部署编排文件
-name: store-ops
-# 不轻易改动，可根据该文件新建各环境的 docker-compose.[env].yml 文件
-# 并把密钥凭证等替换成环境变量
+# 生成环境编排文件
+name: store-ops-prod
 
 services:
   mysql:
@@ -11,7 +9,7 @@ services:
       # 时区上海
       TZ: Asia/Shanghai
       # root 密码
-      MYSQL_ROOT_PASSWORD: ruoyi123
+      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD:?set MYSQL_PASSWORD in .env}
       # 初始化数据库
       MYSQL_DATABASE: ry-cloud
     ports:
@@ -44,9 +42,9 @@ services:
       JVM_XMS: 256m
       JVM_XMX: 512m
       # 认证相关密钥 自行替换
-      NACOS_AUTH_TOKEN: rE7bYayhpvduYwCxuhckybEPDXyna6xwm5m7MZjtjrdXjVxAbXAMccXHyaJvB346
+      NACOS_AUTH_TOKEN: ${NACOS_TOKEN:?set NACOS_TOKEN in .env}
       NACOS_AUTH_IDENTITY_KEY: ruoyi-vue-plus-key
-      NACOS_AUTH_IDENTITY_VALUE: ruoyi-vue-plus-value
+      NACOS_AUTH_IDENTITY_VALUE: ${NACOS_IDENTITY_VALUE:?set NACOS_IDENTITY_VALUE in .env}
     volumes:
       - /docker/nacos/logs/:/home/nacos/logs
       # 默认单机模式 使用 mysql 等按 nacos 文档在配置文件内修改 所有配置均可在配置文件修改
@@ -85,7 +83,7 @@ services:
       # 管理后台用户名
       MINIO_ROOT_USER: ruoyi
       # 管理后台密码，最小8个字符
-      MINIO_ROOT_PASSWORD: ruoyi123
+      MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD:?set MINIO_PASSWORD in .env}
       # https需要指定域名
       #MINIO_SERVER_URL: "https://xxx.com:9000"
       #MINIO_BROWSER_REDIRECT_URL: "https://xxx.com:9001"
@@ -519,7 +517,7 @@ services:
       # 服务地址 用于指定外网ip或域名
       GF_SERVER_ROOT_URL: ""
       # admin 管理员密码
-      GF_SECURITY_ADMIN_PASSWORD: 123456
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in .env}
     ports:
       - "3000:3000"
     volumes:
