@@ -103,16 +103,23 @@ services:
     network_mode: "host"
 
   seata-server:
+    # TC 配置 = 仓库内 script/docker/seata/conf/application.yml（upstream 最小改动版：
+    # registry 段接 Nacos、store 保持官方 file 模式），部署时上传至服务器 /docker/seata/conf/
+    # 2.6.0 镜像无 servlet 容器，TC 控制台不可用（web-application-type=none），不映射 7091
     image: apache/seata-server:2.6.0
     container_name: seata-server
     ports:
-      - "7091:7091"
       - "8091:8091"
     environment:
       TZ: Asia/Shanghai
       # 注意 此处ip如果是外网使用 要改为外网ip
       # SEATA_IP: 127.0.0.1
       SEATA_PORT: 8091
+      # seata/conf/application.yml（registry 段）占位符解析；seata 只认 ${VAR} 纯变量。
+      # host 网络下 Nacos 同机，固定 127.0.0.1:8848（编排内部变量，非 .env 部署项）
+      NACOS_SERVER_ADDR: 127.0.0.1:8848
+      NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      NACOS_PASSWORD: ${NACOS_PASSWORD:?set NACOS_PASSWORD in .env}
     volumes:
       - /docker/seata/conf/application.yml:/seata-server/resources/application.yml
       - /docker/seata/logs/:/root/logs/seata
@@ -141,7 +148,7 @@ services:
     network_mode: "host"
 
   ruoyi-monitor:
-    image: ruoyi/ruoyi-monitor:6.0.0
+    image: ${RUOYI_IMAGE_PREFIX:-ruoyi}/ruoyi-monitor:${RUOYI_IMAGE_TAG:-6.0.0}
     container_name: ruoyi-monitor
     environment:
       # 时区上海
@@ -157,7 +164,7 @@ services:
     network_mode: "host"
 
   ruoyi-snailjob-server:
-    image: ruoyi/ruoyi-snailjob-server:6.0.0
+    image: ${RUOYI_IMAGE_PREFIX:-ruoyi}/ruoyi-snailjob-server:${RUOYI_IMAGE_TAG:-6.0.0}
     container_name: ruoyi-snailjob-server
     environment:
       # 时区上海
@@ -171,7 +178,7 @@ services:
     network_mode: "host"
 
   ruoyi-snailai-server:
-    image: ruoyi/ruoyi-snailai-server:6.0.0
+    image: ${RUOYI_IMAGE_PREFIX:-ruoyi}/ruoyi-snailai-server:${RUOYI_IMAGE_TAG:-6.0.0}
     container_name: ruoyi-snailai-server
     environment:
       # 时区上海
@@ -191,7 +198,7 @@ services:
     network_mode: "host"
 
   ruoyi-gateway:
-    image: ruoyi/ruoyi-gateway:6.0.0
+    image: ${RUOYI_IMAGE_PREFIX:-ruoyi}/ruoyi-gateway:${RUOYI_IMAGE_TAG:-6.0.0}
     container_name: ruoyi-gateway
     environment:
       # 时区上海
@@ -207,7 +214,7 @@ services:
     network_mode: "host"
 
   ruoyi-auth:
-    image: ruoyi/ruoyi-auth:6.0.0
+    image: ${RUOYI_IMAGE_PREFIX:-ruoyi}/ruoyi-auth:${RUOYI_IMAGE_TAG:-6.0.0}
     container_name: ruoyi-auth
     environment:
       # 时区上海
@@ -223,7 +230,7 @@ services:
     network_mode: "host"
 
   ruoyi-system:
-    image: ruoyi/ruoyi-system:6.0.0
+    image: ${RUOYI_IMAGE_PREFIX:-ruoyi}/ruoyi-system:${RUOYI_IMAGE_TAG:-6.0.0}
     container_name: ruoyi-system
     environment:
       # 时区上海
@@ -239,7 +246,7 @@ services:
     network_mode: "host"
 
   ruoyi-gen:
-    image: ruoyi/ruoyi-gen:6.0.0
+    image: ${RUOYI_IMAGE_PREFIX:-ruoyi}/ruoyi-gen:${RUOYI_IMAGE_TAG:-6.0.0}
     container_name: ruoyi-gen
     environment:
       # 时区上海
@@ -255,7 +262,7 @@ services:
     network_mode: "host"
 
   ruoyi-job:
-    image: ruoyi/ruoyi-job:6.0.0
+    image: ${RUOYI_IMAGE_PREFIX:-ruoyi}/ruoyi-job:${RUOYI_IMAGE_TAG:-6.0.0}
     container_name: ruoyi-job
     environment:
       # 时区上海
@@ -273,7 +280,7 @@ services:
     network_mode: "host"
 
   ruoyi-resource:
-    image: ruoyi/ruoyi-resource:6.0.0
+    image: ${RUOYI_IMAGE_PREFIX:-ruoyi}/ruoyi-resource:${RUOYI_IMAGE_TAG:-6.0.0}
     container_name: ruoyi-resource
     environment:
       # 时区上海
@@ -289,7 +296,7 @@ services:
     network_mode: "host"
 
   ruoyi-workflow:
-    image: ruoyi/ruoyi-workflow:6.0.0
+    image: ${RUOYI_IMAGE_PREFIX:-ruoyi}/ruoyi-workflow:${RUOYI_IMAGE_TAG:-6.0.0}
     container_name: ruoyi-workflow
     environment:
       # 时区上海
@@ -305,7 +312,7 @@ services:
     network_mode: "host"
 
   ruoyi-ai:
-    image: ruoyi/ruoyi-ai:6.0.0
+    image: ${RUOYI_IMAGE_PREFIX:-ruoyi}/ruoyi-ai:${RUOYI_IMAGE_TAG:-6.0.0}
     container_name: ruoyi-ai
     environment:
       # 时区上海

@@ -1,3 +1,18 @@
+# ------------------------------------------------------------------------
+# RuoYi-Cloud-Plus upstream 原始样例，本项目 dev 生效配置（docker-compose.dev.yml
+# 挂载至 seata-server 容器 /seata-server/resources/application.yml）。
+# 相对 upstream 的全部差异（最小改动，其余保持官方默认）：
+#   1. registry: type file → nacos，TC 以 ruoyi-seata-server 注册进 Nacos
+#      （与客户端 application-common.yml 的 registry.nacos.application 对齐，cluster: default
+#      与 seata-server.properties 的 service.vgroupMapping.*=default 对齐）
+#   2. registry 凭据改环境变量 ${NACOS_USERNAME} / ${NACOS_PASSWORD}（编排注入；
+#      seata 只解析 ${VAR} 纯变量，不认 ${VAR:default} 语法）
+#   3. store 保持官方默认 file 模式（无需 TC 四表；将来切 db 时参照本文件 store.db
+#      官方样例段，子键必须 kebab-case）
+# 客户端侧 config/registry 均为 nacos（application-common.yml），从 Nacos 拉
+# seata-server.properties（vgroupMapping）；legacy-adapter 插件仍必需（nacos-client 1.4.6 走 v1）
+# 此处的 NACOS_SERVER_ADDR 等变量由 docker compose 编排的 environment 注入（而不是.env文件）
+# ------------------------------------------------------------------------
 #
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
@@ -62,20 +77,25 @@ seata:
       data-id: seata-server.properties
   registry:
     # support: nacos 、 eureka 、 redis 、 zk  、 consul 、 etcd3 、 sofa 、 seata
-    type: file
+    # 【本项目改动】file → nacos：客户端经 Nacos 发现 TC
+    type: nacos
     # preferred-networks: 30.240.*
     metadata:
       weight: 100
     nacos:
-      application: seata-server
-      server-addr: 127.0.0.1:8848
+      # 【本项目改动】与客户端 application-common.yml 的 registry.nacos.application 一致
+      application: ruoyi-seata-server
+      # 【本项目改动】此处 Nacos 地址、密钥等由 docker compose 编排的 environment 注入 NACOS_SERVER_ADDR 等变量（而不是.env文件）：
+      #   dev bridge 网络=nacos:8848（服务名直连）；prod host 网络=127.0.0.1:8848
+      server-addr: ${NACOS_SERVER_ADDR}
       group: DEFAULT_GROUP
       namespace: public
       cluster: default
       context-path:
       ##1.The following configuration is for the open source version of Nacos
-      username: nacos
-      password: nacos
+      # 【本项目改动】凭据环境变量化（seata 只认 ${VAR} 纯变量，不认 ${VAR:default}）
+      username: ${NACOS_USERNAME}
+      password: ${NACOS_PASSWORD}
       ##2.The following configuration is for the MSE Nacos on aliyun
       #access-key:
       #secret-key:

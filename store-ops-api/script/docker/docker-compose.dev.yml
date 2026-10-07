@@ -78,6 +78,9 @@ services:
       NACOS_AUTH_TOKEN: ${NACOS_TOKEN:?set NACOS_TOKEN in .env}
       NACOS_AUTH_IDENTITY_KEY: ruoyi-vue-plus-key
       NACOS_AUTH_IDENTITY_VALUE: ${NACOS_IDENTITY_VALUE:?set NACOS_IDENTITY_VALUE in .env}
+      # 开启 v1 OpenAPI 兼容：seata 2.6.0 内嵌 nacos-client 1.4.6 只走 v1 API（config 拉取 + 服务注册发现），
+      # v3 默认关闭 v1 会返回 501 no such api，导致 TC 配置拉取失败退回 file 模式且无法注册
+      NACOS_CORE_API_V1_ENABLED: "true"
       # 禁用 v3 的 AI 注册中心（Skill/Agent/Prompt/MCP 管理）
       JAVA_OPT_EXT: -Dnacos.extension.ai.enabled=false
       # 控制台端口改 18080（与 prod 一致；镜像模板：nacos.console.port=${NACOS_CONSOLE_PORT:8080}）
@@ -91,6 +94,9 @@ services:
       - rm -f /home/nacos/plugins/nacos-default-ai-importer-plugin-3.2.3.jar && exec bash bin/docker-startup.sh
     volumes:
       - nacos-data:/home/nacos/data
+      # v1/v2 legacy API 适配插件（Nacos 3.2.0 起主程序移除 v1 API，而 seata 2.6.0 的 nacos-client 1.4.6 只走 v1）
+      # jar 已入库（Apache-2.0，源自 nacos-group/nacos-api-legacy-adapter releases；恢复脚本 fetch-legacy-adapter.sh）
+      - ./seata/nacos-plugins/nacos-api-legacy-adapter-3.2.0.jar:/home/nacos/plugins/nacos-api-legacy-adapter-3.2.0.jar:ro
     depends_on:
       mysql:
         condition: service_healthy
@@ -101,6 +107,29 @@ services:
       interval: 15s
       timeout: 5s
       retries: 10
+
+  seata-server:
+    # 分布式事务 TC（Nacos 配置 seata.enabled=true 时各服务需要）
+    # 2.6.0 镜像无 servlet 容器，TC 控制台不可用（官方默认 web-application-type=none），仅 8091 服务端口
+    image: apache/seata-server:2.6.0
+    container_name: seata-server
+    restart: unless-stopped
+    ports:
+      - "8091:8091"    # TC 服务端口（client 经 Nacos 发现后直连）
+    environment:
+      TZ: Asia/Shanghai
+      SEATA_PORT: "8091"
+      # seata/conf/application.yml（registry 段）占位符解析；seata 只认 ${VAR} 纯变量
+      NACOS_SERVER_ADDR: nacos:8848
+      NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      NACOS_PASSWORD: ${NACOS_PASSWORD:?set NACOS_PASSWORD in .env}
+    volumes:
+      # upstream 原始样例最小改动版（registry 段接 Nacos）；store 保持官方默认 file 模式，无需 mysql
+      - ./seata/conf/application.yml:/seata-server/resources/application.yml:ro
+    depends_on:
+      nacos:
+        condition: service_healthy
+    # 官方镜像无 curl，不做 healthcheck（与 prod 一致）；起没起看 Nacos 服务列表的 ruoyi-seata-server
 
 volumes:
   mysql-data:

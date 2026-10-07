@@ -18,12 +18,13 @@ if [ -z "$TOKEN" ]; then
 fi
 
 FAIL=0
-for f in *.yml; do
+for f in *.yml seata-server.properties; do
+  type=$([[ $f == *.properties ]] && echo properties || echo yaml)
   r=$(curl -s -X POST "$BASE/v3/admin/cs/config" \
     --data-urlencode "dataId=$f" \
     --data-urlencode "groupName=DEFAULT_GROUP" \
     --data-urlencode "namespaceId=public" \
-    --data-urlencode "type=yaml" \
+    --data-urlencode "type=$type" \
     --data-urlencode "content@$f" \
     --data-urlencode "accessToken=$TOKEN")
   echo "$f -> $r"
@@ -31,7 +32,7 @@ for f in *.yml; do
 done
 
 if [ "$FAIL" -eq 0 ]; then
-  echo "全部配置导入成功（seata-server.properties 未导入：本期不起 seata）"
+  echo "全部配置导入成功（含 seata-server.properties）"
 else
   echo "存在导入失败的配置，见上方返回" >&2
   exit 2

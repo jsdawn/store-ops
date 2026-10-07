@@ -1,34 +1,20 @@
-# IDE
+# IDE（仅根目录级；子项目内部的 IDE 文件由各自 .gitignore 管理）
 .idea/
 *.iml
-.vscode/
 *.ipr
 *.iws
+.vscode/
 
-# Java / Maven
-target/
-*.class
-*.jar.orig
-.mvn/wrapper/maven-wrapper.jar
-
-# Node / pnpm
-node_modules/
-dist/
-.pnpm-store/
-*.local
-
-# 日志与运行时
-logs/
-*.log
-npm-debug.log*
-pnpm-debug.log*
-
-# 环境变量与密钥
+# 环境变量与密钥（仓库级安全兜底，防止任何位置的凭据误提交）
 .env
 .env.*
 !.env.example
 *.pem
 application-local.yml
+
+# 日志（仅根目录级；子项目由各自 .gitignore 管理）
+logs/
+*.log
 
 # 操作系统
 .DS_Store

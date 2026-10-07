@@ -244,8 +244,9 @@ springdoc:
 
 # seata配置
 seata:
-  # 是否启用
-  enabled: false
+  # 是否启用（datasource.yml 的 dynamic.seata 跟随本开关自动代理数据源；
+  # enable-auto-data-source-proxy 必须保持 false，否则与 dynamic-datasource 双重代理冲突）
+  enabled: true
   # Seata 应用编号，默认为应用名
   application-id: ${spring.application.name}
   # Seata 事务组编号，用于 TC 集群名
