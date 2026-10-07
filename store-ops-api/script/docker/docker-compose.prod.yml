@@ -112,10 +112,8 @@ services:
       - "8091:8091"
     environment:
       TZ: Asia/Shanghai
-      # 注意 此处ip如果是外网使用 要改为外网ip
-      # SEATA_IP: 127.0.0.1
       SEATA_PORT: 8091
-      # seata/conf/application.yml（registry 段）占位符解析；seata 只认 ${VAR} 纯变量。
+      # host 网络下 seata 自动取本机网卡 IP 注册，同机客户端（容器也是 host 网络）天然可达，无需 SEATA_IP。
       # host 网络下 Nacos 同机，固定 127.0.0.1:8848（编排内部变量，非 .env 部署项）
       NACOS_SERVER_ADDR: 127.0.0.1:8848
       NACOS_USERNAME: ${NACOS_USERNAME:-nacos}

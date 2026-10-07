@@ -31,6 +31,7 @@ script/docker/
 | `NACOS_IDENTITY_VALUE` | Nacos 服务端互信身份 | compose（nacos 容器） |
 | `MONITOR_PASSWORD` | Spring Boot Admin 凭据 | Nacos 配置模板 |
 | `RABBITMQ_PASSWORD` | spring-cloud-bus 总线 | Nacos 配置模板 |
+****| `SEATA_REGISTER_IP` | seata-server 注册地址（**dev 专用、机器相关**：填宿主局域网 IP，`ipconfig` 查 WLAN 的 IPv4） | compose（seata 容器 `SEATA_IP`） |
 | `RUOYI_IMAGE_PREFIX` / `RUOYI_IMAGE_TAG` | 后端服务镜像前缀/版本 | **仅 prod**（P6 推 GHCR 后改 `ghcr.io/<user>`） |
 | `MINIO_PASSWORD` / `GRAFANA_ADMIN_PASSWORD` | MinIO / Grafana 凭据 | **仅 prod** |
 
@@ -76,8 +77,10 @@ docker compose -f docker-compose.prod.yml up -d mysql nacos redis seata-server
 ### Seata（TC）
 - 配置 = upstream 原样 `seata/conf/application.yml`，唯一改动 registry 段（`ruoyi-seata-server` 注册进 Nacos）；**store 保持官方默认 file 模式**，无需 TC 四表，将来切 db 按官方样例（子键必须 kebab-case，camelCase 会触发 SPI `name is null`）
 - seata 自身配置系统只认 `${VAR}` 纯变量，**不认 `${VAR:default}`**（会整串当主机名）
+- **dev 注册地址坑**：TC 默认注册容器 bridge IP（172.21.x.x），Windows 宿主上的 IDEA 后端服务不可达 → 客户端报 `can not connect to services-server`。用 `SEATA_IP`（容器 env，源自 `.env` 的 `SEATA_REGISTER_IP`）让 TC 注册宿主局域网 IP，客户端经发布端口 8091 回容器。注意 seata **禁止注册回环地址**（127.0.0.1 在 NetUtil.FORBIDDEN_HOSTS 黑名单，传了会静默回退容器 IP）；`SEATA_IP` 只覆盖注册地址（`XID.setIpAddress`），Netty 仍绑 0.0.0.0
 - 客户端从 Nacos 拉 `seata-server.properties`（vgroupMapping）；TC 自己不读它（`config.type: file`）
 - 端到端 AT 回滚需要各业务库有 `undo_log` 表
+- **注册地址（SEATA_IP）**：TC 注册的地址必须让**客户端**可达——dev 后端跑在 Windows 宿主，容器 bridge IP（172.21.x.x）不可达，故 dev 编排注入 `SEATA_IP=${SEATA_REGISTER_IP}`（宿主局域网 IP，机器相关，放 .env）；prod 全栈 host 网络同机互访，seata 自动取网卡 IP，无需设置。注意 `127.0.0.1` 在 seata `FORBIDDEN_HOSTS` 黑名单里，**传了会被静默忽略**（SEATA_IP 仅覆盖注册地址，Netty 始终绑 0.0.0.0）
 
 ### Nacos 版本耦合（重要）
 - seata 2.6.0 内嵌 nacos-client 1.4.6 只走 **v1 API**，而 Nacos 3.2.0 起主程序移除了 v1/v2 API

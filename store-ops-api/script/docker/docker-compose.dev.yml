@@ -119,6 +119,10 @@ services:
     environment:
       TZ: Asia/Shanghai
       SEATA_PORT: "8091"
+      # dev 拓扑专用：后端服务跑在 Windows 宿主（IDEA），TC 若注册容器 bridge IP（172.21.x.x）宿主不可达。
+      # SEATA_IP 仅覆盖注册地址（XID.setIpAddress），Netty 仍绑 0.0.0.0——客户端连 宿主IP:8091 走发布端口回容器。
+      # 注意 seata 禁止注册回环地址（127.0.0.1 在 FORBIDDEN_HOSTS 黑名单，传了会静默回退容器 IP）
+      SEATA_IP: ${SEATA_REGISTER_IP:?set SEATA_REGISTER_IP in .env}
       # seata/conf/application.yml（registry 段）占位符解析；seata 只认 ${VAR} 纯变量
       NACOS_SERVER_ADDR: nacos:8848
       NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
