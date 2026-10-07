@@ -6,6 +6,7 @@
 - 顾客端为微信小程序（规划中），店员与顾客同端分角色
 - 首版 MVP：会员 + 记账收银 + 积分商城 + 报表；路线 P0 骨架 → P1 门店组织 → P2 会员+收银 → P3 积分 → P4 报表 → P5 上线
 - 小程序UI设计稿地址：<https://ardot.tencent.com/file/732718476352464?web_only=1>
+- 相关源码官方地址：管理台v5.6.2 https://gitee.com/JavaLionLi/plus-ui/tree/5.X/，后端v2.6.2 https://gitee.com/dromara/RuoYi-Cloud-Plus/tree/2.X
 
 ## 整体架构
 
@@ -24,11 +25,11 @@
                             ops-point / ops-order
         └────── Dubbo RPC + Nacos 注册/配置 ──────┘
                      ▼
-        MySQL 8 · Redis · Nacos(18080 控制台)
+        MySQL 8 · Redis · Nacos
 ```
 
-- **后端**：RuoYi-Cloud-Plus 6.0.0（dromara 版）· JDK 21 · Spring Boot 4.1.1 · Spring Cloud Alibaba · Sa-Token · MyBatis-Plus 多租户
-- **管理台**：RuoYi-Cloud-Plus-UI（Vue3 + TS + Element Plus + Vite）
+- **后端**：RuoYi-Cloud-Plus **2.6.2**（dromara 2.X 分支）· JDK 17/21 · Spring Boot 3.5 · Spring Cloud Alibaba · Sa-Token · MyBatis-Plus 多租户（`ruoyi-common-tenant`，`tenant.enable: true`）
+- **管理台**：plus-ui **5.X**（JavaLionLi，Vue3 + TS + Element Plus + Vite，含租户登录选择器与租户管理/套餐页面）
 - **业务模块命名**：框架模块保留 `ruoyi-` 原名，自研业务模块统一 `ops-` 前缀
 - **数据模型**：业务表统一带 `tenant_id + store_id`，会员/积分/订单挂门店级，绩效按 store_id 聚合
 
@@ -81,6 +82,7 @@ pnpm dev        # 默认 http://localhost:80，登录 admin / admin123
 ## 协作约定
 
 - 单仓 monorepo，`main` 分支；commit / push 由开发者手动执行
+- **基线**：后端 RuoYi-Cloud-Plus v2.6.2 + 管理台 plus-ui 5.X（2026-10-07 起；6.x 基线因官方移除多租户废弃，归档于 `archive/ruoyi-6x` 分支 / `v1.0.0-6.x-infra` 标签）
 - 后端构建统一 `./mvnw`（Maven Wrapper），勿用系统 mvn
 - 后端凭据一律走 `script/docker/.env`（gitignored），配置模板内只允许 `${VAR}` 占位符，禁止明文密钥入库
 - 后端中间件编排以 `script/docker/docker-compose.dev.yml` 为准；官方 upstream 编排仅作升级参照
