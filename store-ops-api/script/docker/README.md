@@ -69,8 +69,9 @@ cp .env.example .env   # 然后按需修改
 cd script/docker
 docker compose -p store-ops-dev -f docker-compose.dev.yml up -d
 
-# 首次启动 mysql 会自动建库并导入 script/sql/ 全部官方 SQL：
-#   ry-cloud / ry-config / ry-job / ry-workflow / ry-seata
+# 首次启动 mysql 会自动建库并导入 script/sql/ 官方 SQL：
+#   ry-cloud / ry-config / ry-job / ry-workflow
+#   （ry-seata 不需要——Seata 已定案 file 存储模式，无需 TC 四表）
 # 查看初始化日志: docker compose -p store-ops-dev logs mysql
 
 # 停止（保留数据）: docker compose -p store-ops-dev -f docker-compose.dev.yml down
@@ -102,7 +103,7 @@ cp .env.example .env    # 填写 prod 强密码与 SEATA_IP
 # 3. 导库（官方为手动导库；如需自动建库可参照 dev 的 mysql/init 脚本自行启用挂载）
 docker exec -i mysql mysql -uroot -p"${MYSQL_ROOT_PASSWORD}" -e "CREATE DATABASE IF NOT EXISTS \`ry-cloud\` DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_general_ci; ..."
 docker exec -i mysql mysql -uroot -p"${MYSQL_ROOT_PASSWORD}" --default-character-set=utf8mb4 ry-cloud  < <仓库>/script/sql/ry-cloud.sql
-#   ry-config / ry-job / ry-workflow / ry-seata 同理
+#   ry-config / ry-job / ry-workflow 同理（ry-seata 无需创建，Seata 为 file 存储模式）
 # 4. 分步启动（保证 nacos 先于 seata-server 就绪）
 docker compose -f docker-compose.prod.yml up -d mysql nacos redis minio
 #    待 nacos 就绪(8848 可访问)并在控制台导入 script/config/nacos/ 配置后：
@@ -122,6 +123,7 @@ prod 与官方编排的**唯一差异**：密钥走 `.env`；nacos/seata 挂载 
 | nacos 配置库 | jar 内 `127.0.0.1:3306/root/root` | override → `mysql:3306` + `.env` 密码 | override → `127.0.0.1:3306` + `.env` 密码 |
 | seata registry | jar 内 `127.0.0.1:8848/nacos/nacos` | override → `nacos:8848` + `.env` 凭据 | override → `127.0.0.1:8848` + `.env` 凭据 |
 | redis 密码 | redis.conf 烘焙 `ruoyi123` | `--requirepass ${REDIS_PASSWORD}` | 同 dev |
+| seata 会话存储 | `store.mode=db`（需 ry-seata 库 + TC 四表） | `file`（`seata-file-store` 命名卷持久化） | `file`（`/docker/ruoyi-seata-server/file-store` 持久化） |
 | mysql 建库导表 | 手动 | `mysql/init` 脚本自动（首次） | 手动（命令见上） |
 | 失败重试 | 无 | nacos/seata `restart: unless-stopped` | 无（分步启动） |
 | `SEATA_IP` | 注释态（自动检测） | 必填宿主局域网 IP | 可选（自动检测/显式填） |
@@ -129,6 +131,6 @@ prod 与官方编排的**唯一差异**：密钥走 `.env`；nacos/seata 挂载 
 ## 六、后续步骤（环境就绪后）
 
 1. **Nacos 配置导入**：`script/config/nacos/` 下各 yml（datasource/application-common/gateway 等）导入 Nacos `dev` 命名空间（ry-config.sql 内置的是占位内容「将项目路径：config/下对应文件中内容复制到此处」，需替换为真实内容；密钥引用 `.env` 同源变量）。
-2. **`seata-server.properties`**（Nacos config，data-id 同名）：vgroupMapping 保持官方；`store.mode=db` 时 dev 的 store.db url 需指向 `mysql:3306`（bridge），prod 指向 `127.0.0.1:3306`。
+2. **`seata-server.properties`**（Nacos config，data-id 同名）：已定案 **file 存储模式**（`script/config/nacos/seata-server.properties` 已改，偏离官方 db 默认值）——无需 ry-seata 库与 TC 四表，文件内不含任何数据库连接信息，dev/prod 统一一份直接导入；会话持久化目录 `/ruoyi/seata-server/file-store` 由 compose 挂卷。
 3. **启动微服务**：宿主 IDEA 按 `docs/development/idea-启动调试指南.md` 启动 gateway/auth/system/resource（seata 客户端 enabled 默认 false，按需开启）。
 4. **管理台**：`store-ops-admin`（plus-ui 5.X）dev server，登录验证租户选择器。

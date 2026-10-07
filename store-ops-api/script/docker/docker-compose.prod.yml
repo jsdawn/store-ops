@@ -136,6 +136,8 @@ services:
       NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos}
     volumes:
       - /docker/ruoyi-seata-server/logs/:/ruoyi/seata-server/logs
+      # file 存储模式会话持久化(store.file.dir,见 script/config/nacos/seata-server.properties)
+      - /docker/ruoyi-seata-server/file-store:/ruoyi/seata-server/file-store
       # skywalking 探针
       - /docker/skywalking/agent/:/ruoyi/skywalking/agent
       # 自建覆盖文件: 仅覆盖 registry/config 的 server-addr 与凭据(其余键继承镜像内官方值)

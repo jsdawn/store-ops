@@ -117,6 +117,8 @@ services:
       NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos}
     volumes:
       - seata-logs:/ruoyi/seata-server/logs
+      # file 存储模式会话持久化(store.file.dir,见 script/config/nacos/seata-server.properties)
+      - seata-file-store:/ruoyi/seata-server/file-store
       # 自建覆盖文件: 仅覆盖 registry/config 的 server-addr 与凭据(其余键继承镜像内官方值)
       - ./seata/override/application.yml:/ruoyi/seata-server/config/application.yml
     # dev 便利: nacos 就绪前启动失败自动重试
@@ -129,3 +131,4 @@ volumes:
   minio-data:
   minio-config:
   seata-logs:
+  seata-file-store:
