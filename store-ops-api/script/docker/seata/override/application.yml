@@ -1,0 +1,23 @@
+# ============================================================
+# store-ops 自建覆盖文件(非官方文件)
+# 挂载到容器 /ruoyi/seata-server/config/application.yml
+# Spring Boot 外部配置 file:./config/ 优先级高于 jar 内 application.yml
+# 且按"键级合并"——本文件只写差异键,type/group/namespace/cluster/data-id
+# 等键全部继承镜像内官方烘焙值(namespace=${spring.profiles.active} 保持官方行为)
+#
+# 差异原因: 镜像内构建期烘焙 @nacos.server@=127.0.0.1:8848(host 网络专用),
+#          dev 为 bridge 网络需指向 compose 服务名 nacos:8848;
+#          凭据走 .env(纯 ${VAR} 变量,seata 配置不认 ${VAR:default} 语法)
+# 变量由 compose 的 environment 注入(见 docker-compose.dev.yml / prod.yml)
+# ============================================================
+seata:
+  config:
+    nacos:
+      server-addr: ${NACOS_SERVER_ADDR}
+      username: ${NACOS_USERNAME}
+      password: ${NACOS_PASSWORD}
+  registry:
+    nacos:
+      server-addr: ${NACOS_SERVER_ADDR}
+      username: ${NACOS_USERNAME}
+      password: ${NACOS_PASSWORD}

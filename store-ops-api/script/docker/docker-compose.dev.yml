@@ -1,0 +1,131 @@
+# =====================================================================
+# store-ops dev 编排(Windows 开发机拓扑: 中间件进容器,微服务宿主 IDEA 运行)
+#
+# 与官方 docker-compose.yml 的关系:
+#   * 镜像版本/配置/端口与官方完全一致(官方母本见同目录 docker-compose.yml)
+#   * 服务面仅保留中间件五件套(gateway/auth/system 等微服务在宿主启动)
+#   * 差异点均已注释标明: bridge 网络 / 挂载覆盖 / 自动建库 / restart
+#
+# 用法:
+#   cd script/docker
+#   cp .env.example .env          # 修改 SEATA_IP 为本机局域网 IP
+#   docker compose -p store-ops-dev -f docker-compose.dev.yml up -d
+# 停止:  ... down        停止并清数据: ... down -v
+# =====================================================================
+services:
+  mysql:
+    image: mysql:8.0.42
+    environment:
+      TZ: Asia/Shanghai
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ry-cloud
+    ports:
+      - "3306:3306"
+    volumes:
+      # 数据挂载(命名卷,随 -p store-ops-dev 前缀)
+      - mysql-data:/var/lib/mysql/
+      # 自建: 首次启动自动建库并导入官方 SQL(官方为手动导库,dev 便利性增强)
+      - ./mysql/init:/docker-entrypoint-initdb.d/:ro
+      # 官方 SQL 只读挂载,供 init 脚本引用
+      - ../../sql:/sql/:ro
+    command:
+      # 将mysql8.0默认密码策略 修改为 原先 策略 (mysql8.0对其默认策略做了更改 会导致密码无法匹配)
+      --default-authentication-plugin=mysql_native_password
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_general_ci
+      --explicit_defaults_for_timestamp=true
+      --lower_case_table_names=1
+    privileged: true
+
+  nacos:
+    image: ruoyi/ruoyi-nacos:2.6.2
+    environment:
+      TZ: Asia/Shanghai
+      JAVA_OPTS: "-Xms256m -Xmx512m"
+      # 覆盖镜像内烘焙的 127.0.0.1(bridge 网络下不通),经 override 文件注入
+      NACOS_DB_HOST: mysql
+      NACOS_DB_USER: root
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    ports:
+      - "8848:8848"
+      - "9848:9848"
+      - "9849:9849"
+    volumes:
+      # 日志目录
+      - nacos-logs:/root/nacos/logs
+      # 集群配置文件(官方原样,单机自指 127.0.0.1:8848)
+      - ./nacos/conf/cluster.conf:/root/nacos/conf/cluster.conf
+      # 自建覆盖文件: 仅覆盖 db.url.0/db.user.0/db.password.0 三键
+      - ./nacos/override/application.properties:/ruoyi/nacos/config/application.properties
+    # dev 便利: mysql 就绪前启动失败自动重试
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.2.8
+    environment:
+      TZ: Asia/Shanghai
+    ports:
+      - "6379:6379"
+    volumes:
+      # 配置文件(官方原样,requirepass 由下方命令行参数覆盖)
+      - ./redis/conf:/redis/config
+      # 数据文件
+      - redis-data:/redis/data/
+    # 命令行参数优先于配置文件: 密码统一走 .env(官方 redis.conf 烘焙 ruoyi123)
+    command: "redis-server /redis/config/redis.conf --requirepass ${REDIS_PASSWORD}"
+    privileged: true
+
+  minio:
+    # pgsty 开源社区 fork 重新维护的最新版 minio(官方同款)
+    image: pgsty/minio:RELEASE.2026-02-14T12-00-00Z
+    ports:
+      # api 端口
+      - "9000:9000"
+      # 控制台端口
+      - "9001:9001"
+    environment:
+      TZ: Asia/Shanghai
+      # 管理后台用户名
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      # 管理后台密码，最小8个字符
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      # 开启压缩 on 开启 off 关闭
+      MINIO_COMPRESS: "off"
+      # 扩展名 .pdf,.doc 为空 所有类型均压缩
+      MINIO_COMPRESS_EXTENSIONS: ""
+      # mime 类型 application/pdf 为空 所有类型均压缩
+      MINIO_COMPRESS_MIME_TYPES: ""
+    volumes:
+      - minio-data:/data
+      - minio-config:/root/.minio/
+    command: server --address ':9000' --console-address ':9001' /data
+    privileged: true
+
+  seata-server:
+    image: ruoyi/ruoyi-seata-server:2.6.2
+    ports:
+      - "7091:7091"
+      - "8091:8091"
+    environment:
+      TZ: Asia/Shanghai
+      # dev 必填: 宿主机局域网 IP(.env),客户端经此地址连接 TC(bridge 下容器 IP 不可达)
+      SEATA_IP: ${SEATA_IP}
+      SEATA_PORT: 8091
+      # 覆盖镜像内烘焙的 127.0.0.1:8848(bridge 网络下指向服务名),经 override 文件注入
+      NACOS_SERVER_ADDR: nacos:8848
+      NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos}
+    volumes:
+      - seata-logs:/ruoyi/seata-server/logs
+      # 自建覆盖文件: 仅覆盖 registry/config 的 server-addr 与凭据(其余键继承镜像内官方值)
+      - ./seata/override/application.yml:/ruoyi/seata-server/config/application.yml
+    # dev 便利: nacos 就绪前启动失败自动重试
+    restart: unless-stopped
+
+volumes:
+  mysql-data:
+  nacos-logs:
+  redis-data:
+  minio-data:
+  minio-config:
+  seata-logs:
