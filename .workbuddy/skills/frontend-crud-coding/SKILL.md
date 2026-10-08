@@ -1,20 +1,21 @@
 ---
 name: frontend-crud-coding
-description: 在 store-ops-admin（plus-ui）前端项目中按真实 Vue 3 + TypeScript + Element Plus + oxlint/oxfmt 代码风格生成或修改页面、API、types、hooks 接入和样式壳。当用户需要新增或修改标准 CRUD 列表页、树表页、系统管理页、监控页、workflow 页面、demo 页面，补齐与后端接口对应的 src/api、types 和 src/views 代码时使用；默认参考 Gitee 仓库 JavaLionLi/plus-ui 的 6.X-Vue 分支，触发后应先读取适用 references，再阅读目标模块真实代码和项目内 gen 代码生成模板。
+description: 在 store-ops-admin（plus-ui 5.6.2，Vue 3 + TypeScript + Element Plus）前端项目中按真实代码风格生成或修改页面、API、types、字典接入和样式。当用户需要新增或修改标准 CRUD 列表页、树表页、系统管理页、监控页、workflow 页面、demo 页面，补齐与后端接口对应的 src/api、types 和 src/views 代码时使用；基线为 Gitee 仓库 JavaLionLi/plus-ui 的 5.X-Vue 分支（5.6.2），触发后应先读取适用 references，再阅读目标模块真实代码，代码生成模板在后端仓库 ruoyi-gen 的 vm/ 目录。
 agent_created: true
 ---
 
 # 前端编码规范
 
-先对齐当前前端项目里的真实实现，再参考项目内 `gen` 目录下的代码生成模板。不要只套通用 Vue 模板，也不要把 generator 模板原样复制进来而忽略当前项目已经演进出的 hooks、页面壳、类型入口和下载方式。
+先对齐当前前端项目里的真实实现，再参考后端仓库 `ruoyi-gen` 的 `vm/` 代码生成模板。不要只套通用 Vue 模板，也不要把 generator 模板原样复制进来而忽略当前项目已经形成的组件、类型入口和下载方式。
 
 ## 项目基线
 
 - 基线仓库：`https://gitee.com/JavaLionLi/plus-ui`
-- 默认分支：`6.X-Vue`
-- 远端引用必须同时标记仓库、分支和文件路径，例如 `https://gitee.com/JavaLionLi/plus-ui/blob/6.X-Vue/gen/index.vue.ftl` 或 `branch=6.X-Vue, path=gen/index.vue.ftl`。
+- 默认分支：`5.X-Vue`（当前版本 5.6.2，对应后端 RuoYi-Cloud-Plus 2.6.2）
+- 远端引用必须同时标记仓库、分支和文件路径，例如 `https://gitee.com/JavaLionLi/plus-ui/blob/5.X-Vue/src/views/demo/demo/index.vue` 或 `branch=5.X-Vue, path=src/views/demo/demo/index.vue`。
 - 不要在 skill、reference 或输出文档中写本机绝对路径；本地文件读取以运行时工作目录（`store-ops-admin/`）为准。
 - 如果用户指定其他分支，先按用户分支读取同一仓库的对应文件，并在结果中说明使用的分支。
+- 代码生成模板（`index.vue.vm`、`index-tree.vue.vm`、`api.ts.vm`、`types.ts.vm`）位于后端仓库 `ruoyi-modules/ruoyi-gen/src/main/resources/vm/`，前端工程内没有 `gen/` 目录。
 
 ## 执行流程
 
@@ -22,21 +23,22 @@ agent_created: true
 2. 按"文档读取规则"读取必要 reference，不一次性展开所有资料。
 3. 阅读目标目录下最近似的真实代码：
    - 标准单表优先看 `src/views/demo/demo/index.vue`、`src/api/demo/demo/*`。
-   - 树表优先看 `src/views/demo/tree/index.vue`、`src/views/workflow/category/index.vue`。
+   - 树表优先看 `src/views/demo/tree/index.vue`。
    - 系统复杂页优先看 `src/views/system/user/index.vue`、`system/role`、`system/post`、`system/config`。
    - workflow 业务页优先看 `src/views/workflow/*` 同类页面。
-4. 新增标准页面前，对照项目内模板确认基础骨架：
-   - API 模板：`gen/api.ts.ftl`
-   - types 模板：`gen/types.ts.ftl`
-   - 标准单表页模板：`gen/index.vue.ftl`
-   - 树表页模板：`gen/index-tree.vue.ftl`
+   - 监控、工具页看 `src/views/monitor/*`、`src/views/tool/*`。
+4. 新增标准页面前，对照后端 `vm/` 模板确认基础骨架：
+   - API 模板：`vm/ts/api.ts.vm`
+   - types 模板：`vm/ts/types.ts.vm`
+   - 标准单表页模板：`vm/vue/index.vue.vm`
+   - 树表页模板：`vm/vue/index-tree.vue.vm`
 5. 新增代码时通常同步维护 `src/api/<module>/<business>/index.ts`、`types.ts`、`src/views/<module>/<business>/index.vue`。
 6. 增强已有页面时只做增量修改，保留原页面的树筛选、导入导出、列显隐、权限、字典、弹窗和路由跳转能力。
-7. 修改完成后按影响范围运行验证：优先 `pnpm exec vue-tsc --noEmit`，改动页面或导入时再跑 `pnpm lint`，大范围变更再跑 `pnpm build`。
+7. 修改完成后按影响范围运行验证：优先 `pnpm exec vue-tsc --noEmit`，改动页面或导入时再跑 `pnpm run lint:eslint`，大范围变更再跑 `pnpm run build:prod`。
 
 ## 文档读取规则
 
-- 前端 API、types、页面、hooks、样式和验证规则，先读 [references/frontend.md](references/frontend.md)。
+- 前端 API、types、页面、字典、样式和验证规则，先读 [references/frontend.md](references/frontend.md)。
 - 不确定任务边界、需要标准用例或提问方式时，再读 [references/examples.md](references/examples.md)。
 - reference 只约束实现方式和自检范围；发生冲突时，以当前模块真实代码和实际调用点为准。
 
@@ -45,26 +47,26 @@ agent_created: true
 发生冲突时按下面顺序决策：
 
 1. 目标目录下最近似页面、API、types 的真实实现。
-2. 当前项目公共 hooks、组件、工具和样式约定。
-3. 项目内 `gen` 代码生成模板。
+2. 当前项目公共组件、工具和样式约定（`src/components`、`src/utils`、`src/plugins`）。
+3. 后端 `ruoyi-gen` 的 `vm/` 代码生成模板。
 4. 通用 Vue 3 / Element Plus 习惯。
 
 也就是说：
 
 - 同模块已有页面怎么写，优先怎么写。
-- 没有现成页面时，使用项目内 `gen` 模板作为骨架，再改成当前项目风格。
+- 没有现成页面时，使用 `vm/` 模板作为骨架，再改成当前项目风格。
 - 复杂模块不能为了"标准 CRUD"退化成裸模板页。
 
 ## 仓库通用规则
 
+- 技术栈：Vue 3 + TypeScript + Element Plus + Vite + Pinia + UnoCSS，包管理 pnpm。
 - 遵循前端仓库根的 `.editorconfig`：UTF-8、LF、2 空格缩进；Markdown 例外。
-- 当前仓库没有 `.prettierrc`，格式脚本是 `pnpm run fmt` 调用 `oxfmt .`，lint 脚本是 `pnpm lint` 调用 `oxlint src`。
-- 页面优先使用 `<script setup name="Xxx" lang="ts">`。
-- API 返回类型优先从 `@/utils/api-types` 引入 `AxiosPromise`，分页结果从 `@/api/types` 引入 `PageResult`。
-- 请求统一通过 `@/utils/request`，导出下载使用 `import { download as requestDownload } from '@/utils/request';`。
-- 标准列表页优先复用 `useLoading`、`useSearchToggle`、`useSearchReset`、`useTableSelection`、`useFormDialog`、`useDateRangeQuery`。
-- 页面壳优先使用 `p-2 app-container <module>-<business>-page`、`search-panel`、`toolbar-shell`、`data-table`、`right-toolbar`、`pagination`。
+- 格式化使用 `pnpm run prettier`（`.prettierrc`），lint 使用 `pnpm run lint:eslint`（`eslint.config.ts`）；当前仓库没有 oxlint/oxfmt。
+- 页面使用 `<script setup name="Xxx" lang="ts">`；`getCurrentInstance`、`ref`、`reactive` 等 Vue API 由 unplugin 自动导入。
+- 全局类型 `BaseEntity`、`PageQuery`、`PageData`、`DialogOption`、`DictDataOption` 等在 `src/types/global.d.ts` 中 declare，使用时无需 import。
+- 请求统一通过 `@/utils/request` 默认导出；导出下载使用 `proxy?.download(url, params, fileName)`；导入上传使用 `globalHeaders()`。
 - 新页面不要无故引入另一套状态管理、请求封装、样式体系或权限写法。
+- 当前版本没有 `useLoading`、`useFormDialog`、`useSearchReset`、`useTableSelection`、`useDateRangeQuery` 等 6.x hooks；只有轻量 `src/hooks/useDialog.ts`（title + visible 弹窗状态），已有页面用到时跟随。
 
 ## 目录映射规则
 
@@ -94,11 +96,11 @@ agent_created: true
 
 ### 1. 标准单表 CRUD
 
-以 `gen/index.vue.ftl`、`gen/api.ts.ftl`、`gen/types.ts.ftl` 和 `src/views/demo/demo/index.vue` 为主要起点，补齐列表、搜索、分页、新增、编辑、删除、导出、权限、类型和验证。
+以后端 `vm/vue/index.vue.vm`、`vm/ts/api.ts.vm`、`vm/ts/types.ts.vm` 和 `src/views/demo/demo/index.vue` 为主要起点，补齐列表、搜索、分页、新增、编辑、删除、导出、权限、类型和验证。
 
 ### 2. 树表 CRUD
 
-以 `src/views/demo/tree/index.vue`、`src/views/workflow/category/index.vue` 为主要起点。列表接口通常返回数组而不是 `PageResult`，页面使用 `handleTree`、`useTreeTableExpand`，`Query` 通常不继承 `PageQuery`。
+以 `src/views/demo/tree/index.vue` 为主要起点。列表接口返回数组而不是分页结构，页面使用 `proxy?.handleTree` 组树，`Query` 不继承 `PageQuery`。
 
 ### 3. 强业务页面
 
@@ -120,21 +122,19 @@ workflow 目录优先参考 `src/views/workflow/*`。流程定义、流程实例
 - API 路径、函数名、权限标识与后端接口保持一致。
 - 标准页查询、重置、分页、弹窗、提交、删除、导出流程闭环完整。
 - 复杂页面保留原有交互能力和业务约束。
-- 代码体现当前项目 hooks、页面壳和下载方式，而不是 `gen` 模板裸输出。
+- 代码体现当前项目的 `proxy` 全局用法、`DialogOption` 弹窗和 `proxy?.download` 下载方式，而不是模板裸输出。
 - 交付前说明运行过的验证命令；如果无法验证，说明原因。
 
 ## 快速检查清单
 
-- `AxiosPromise` 是否来自 `@/utils/api-types`。
-- `PageResult` 是否来自 `@/api/types`。
+- `AxiosPromise` 是否从 `axios` 引入（当前版本没有 `@/utils/api-types`）。
+- 列表接口是否返回 `AxiosPromise<XxxVO[]>`，页面是否取 `res.rows` / `res.total`（当前版本没有 `PageResult` 类型）。
 - API `params` 和 `data` 是否与后端方法一致。
-- 日期范围是否通过 `useDateRangeQuery` 或附近页面现有方式处理。
-- 列表 loading 是否通过 `useLoading` 或原页面方式维护。
-- 弹窗是否通过 `useFormDialog` 或原页面方式维护。
-- 多选状态是否通过 `useTableSelection` 或原页面方式维护。
-- 权限指令是否保持同文件一致，默认使用当前项目主流 `v-hasPermi`。
-- 导出是否使用 `requestDownload('<module>/<business>/export', { ...queryParams.value }, '<name>_<time>.xlsx')`。
-- 页面壳是否保留 `search-panel`、`table-panel`、`toolbar-shell`、`data-table`、`right-toolbar`、`pagination`。
+- 日期范围是否通过页面内 `dateRange` ref + `addDateRange` 等现有方式处理。
+- 列表 loading、多选、弹窗是否按 5.x 标准 ref / `reactive<DialogOption>` 方式维护。
+- 权限指令是否保持同文件一致，默认使用 `v-hasPermi`。
+- 导出是否使用 `proxy?.download('<module>/<business>/export', { ...queryParams.value }, '<name>_<timestamp>.xlsx')`。
+- 字典是否通过 `proxy?.useDict(...)` + `toRefs` 解构。
 
 ## 推荐提问方式
 
@@ -148,5 +148,5 @@ workflow 目录优先参考 `src/views/workflow/*`。流程定义、流程实例
 
 例如：
 
-- 使用 `frontend-crud-coding` skill 为 `/system/client` 补一套标准 CRUD 页面，参考 `gen` 模板、`demo/demo` 和 `system/client`。
+- 使用 `frontend-crud-coding` skill 为 `/system/client` 补一套标准 CRUD 页面，参考后端 vm 模板、`demo/demo` 和 `system/client`。
 - 使用 `frontend-crud-coding` skill 修改 `workflow/category` 列表页，增加导出按钮和状态筛选，保持当前 workflow 风格。

@@ -7,6 +7,7 @@
 - `ruoyi-modules/*/src/main/java/.../dubbo/Remote*ServiceImpl.java`
 - `ruoyi-auth/src/main/java/...`
 - `ruoyi-gateway/src/main/java/.../filter/**`
+- `ruoyi-gateway-mvc/`（Servlet 版网关，与 `ruoyi-gateway`（WebFlux 版）并存，改网关前先确认目标应用用的是哪一个）
 - `ruoyi-common/ruoyi-common-dubbo/**`
 - `ruoyi-common/ruoyi-common-seata/**`
 - `script/config/nacos/*.yml`
@@ -30,31 +31,32 @@
 ## Dubbo Consumer
 
 - 消费方注入远程服务使用 `@DubboReference`，字段类型使用 `ruoyi-api-*` 的 `RemoteXxxService`。
-- 可选或弱依赖调用按已有写法使用 `@DubboReference(mock = "true")` 或 `@DubboReference(stub = "true")`，并在 `ruoyi-api-*` 中提供 `RemoteXxxServiceMock` / `RemoteXxxServiceStub`。
+- 可选或弱依赖调用按已有写法使用 `@DubboReference(mock = "true")` 或 `@DubboReference(stub = "true")`，并在 `ruoyi-api-*` 中提供 `RemoteXxxServiceMock` / `RemoteXxxServiceStub`（参考现有 `OssUrlTranslationImpl`、租户服务等调用点）。
 - mock 用于服务调用异常后的降级返回，例如返回 `null`、`List.of()`、`StringUtils.EMPTY`；stub 用于本地包裹远程调用并吞掉非关键异常，例如消息推送未开启。
-- 列表、翻译、流程候选人、消息推送等场景优先调用批量远程接口，避免在循环中逐条 Dubbo 调用。
+- 列表、翻译、流程候选人、消息推送等场景优先设计成一次远程调用取回批量数据，避免在循环中逐条 Dubbo 调用（当前翻译接口本身是单条 `translation(key, other)`，列表页尤其要留意 N+1）。
 - 远程调用失败是否抛出异常要按业务语义决定：登录、权限、注册等关键路径应失败；通知、推送、OSS URL 翻译等弱依赖可降级。
 
 ## 应用与依赖
 
-- 需要 Dubbo provider 或 consumer 的应用启动类保持 `@EnableDubbo`，模块 pom 检查是否依赖 `ruoyi-common-dubbo`。
+- 需要 Dubbo provider 或 consumer 的应用启动类保持 `@EnableDubbo`（system、gen、job、resource、workflow、auth 均已标注），模块 pom 检查是否依赖 `ruoyi-common-dubbo`。
 - 跨服务写入需要分布式事务时检查是否依赖 `ruoyi-common-seata`，并使用 `@GlobalTransactional(rollbackFor = Exception.class)`；单服务本地写入继续使用 `@Transactional`。
 - `common-dubbo.yml` 是内置配置，注册中心走 Nacos，元数据中心走 Redis；不要直接改内置配置做业务定制，业务环境差异优先通过 Nacos 同名配置覆盖。
-- 各应用 `application.yml` 通常导入 `optional:nacos:application-common.yml` 和 `optional:nacos:${spring.application.name}.yml`，新增应用或配置时保持这个结构。
+- 各应用 `application.yml` 通过 maven filter 占位符（`@nacos.server@` 等）注入 Nacos 地址，并导入 `optional:nacos:application-common.yml` 和 `optional:nacos:${spring.application.name}.yml`；新增应用或配置时保持这个结构。
+- Nacos 初始化配置模板位于仓库 `script/config/nacos/`（application-common.yml、datasource.yml、ruoyi-gateway.yml、ruoyi-auth.yml、ruoyi-system.yml 等），新增服务配置时同步补一份。
 
 ## 数据权限与上下文
 
-- Dubbo 消费端存在 `DubboDataPermissionFilter`，会透传 `DataPermissionHelper` 上下文；不要随意删除或绕过数据权限上下文。
+- Dubbo 消费端存在 `DubboDataPermissionFilter`（位于 `ruoyi-common-mybatis`），会透传 `DataPermissionHelper` 上下文；不要随意删除或绕过数据权限上下文。
 - 远程 provider 内部查询仍按本模块 mapper/service 的数据权限规则执行。
 - 确实需要系统级写入或登录记录更新时，按现有代码使用 `DataPermissionHelper.ignore(...)` 包裹最小范围。
 - 涉及登录用户、租户、客户端、same-token、请求头透传时先查 `LoginHelper`、Gateway 过滤器和 common-satoken 现有实现。
 
 ## Gateway 与 Auth
 
-- 认证中心位于 `ruoyi-auth`，网关位于 `ruoyi-gateway`；不要把 token 签发、客户端校验、网关白名单逻辑散落到普通业务模块。
-- Gateway 的 `AuthFilter` 负责 Sa-Token 登录校验、客户端 ID 匹配、客户端访问路径/IP 白名单和 actuator Basic Auth。
-- `ForwardAuthFilter` 负责透传 `X-Forwarded-Prefix` 和内部 same-token；新增网关过滤逻辑时注意 filter order 和 actuator 排除。
-- 网关白名单、路由、鉴权、Nacos metadata 等配置优先放 Nacos 配置文件或已有 properties，不硬编码到业务 controller。
+- 认证中心位于 `ruoyi-auth`，WebFlux 网关位于 `ruoyi-gateway`，Servlet 网关位于 `ruoyi-gateway-mvc`；不要把 token 签发、客户端校验、网关白名单逻辑散落到普通业务模块。
+- 网关的 `AuthFilter` 负责 Sa-Token 登录校验、客户端 ID 匹配、客户端访问路径/IP 白名单和 actuator Basic Auth；`BlackListUrlFilter`、`GlobalLogFilter`、`WebCorsFilter`、`WebI18nFilter` 等辅助过滤器按需扩展。
+- `ForwardAuthFilter` 负责透传内部 same-token 等鉴权头；新增网关过滤逻辑时注意 filter order 和 actuator 排除。
+- 网关白名单（`IgnoreWhiteProperties`）、路由、鉴权等配置优先放 Nacos 配置文件（`script/config/nacos/ruoyi-gateway.yml`），不硬编码到业务 controller。
 - 业务 controller 仍保留 `@SaCheckPermission`、`@SaCheckRole` 等权限注解，网关认证不替代业务权限。
 
 ## Seata 与跨服务副作用

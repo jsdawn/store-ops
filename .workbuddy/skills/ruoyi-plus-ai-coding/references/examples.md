@@ -11,8 +11,8 @@
 
 ### 期望执行方式
 
-- 先读 generator 的 `domain/bo/vo/service/serviceImpl/controller` 模板。
-- 再读 `system` 模块里最接近的现有管理模块。
+- 先读 `ruoyi-gen` 的 `vm/java/domain/bo/vo/mapper/service/serviceImpl/controller` 模板。
+- 再读 `system` 模块里最接近的现有管理模块（如 `SysPost`）。
 - 先生成骨架，再补权限、日志、校验、导出等细节。
 
 ## 案例 2：修改已有复杂模块
@@ -26,7 +26,7 @@
 ### 期望执行方式
 
 - 先读当前 workflow 模块同类代码。
-- 判断这是“复杂模块增强”，不是“从零生成”。
+- 判断这是"复杂模块增强"，不是"从零生成"。
 - 增量修改原逻辑，不要重写整个 service/controller。
 
 ## 案例 3：补唯一性校验与删除前校验
@@ -34,28 +34,29 @@
 ### 用户提问示例
 
 ```text
-使用 $ruoyi-plus-ai-coding 为 demo/demo 模块补充新增和修改时的唯一性校验，并补充删除前校验。
+使用 $ruoyi-plus-ai-coding 为新模块补充新增和修改时的唯一性校验，并补充删除前校验。
 ```
 
 ### 期望执行方式
 
-- 优先修改 `validEntityBeforeSave(...)`。
-- 根据模块现有风格补 `ServiceException` 或显式失败返回。
+- generator 风格模块优先补 `validEntityBeforeSave(...)`；system 手写风格模块参考 `checkPostNameUnique` / `checkPostCodeUnique`。
+- 根据模块现有风格补 `ServiceException` 或 `R.fail("...")` 显式失败提示。
 - 删除逻辑只补必要校验，不重构整套 CRUD。
 
-## 案例 4：补数据权限与联表查询
+## 案例 4：补数据权限与自定义联表查询
 
 ### 用户提问示例
 
 ```text
-使用 $ruoyi-plus-ai-coding 为 system 模块某个列表查询增加部门数据权限和联表字段返回，参考现有 user mapper 的 MPJ 与 DataPermission 写法。
+使用 $ruoyi-plus-ai-coding 为 system 模块某个列表查询增加部门数据权限，并返回关联部门名称，参考现有 user mapper 的 DataPermission 写法。
 ```
 
 ### 期望执行方式
 
-- 先看 `SysUserMapper` 和相关 service。
-- 判断需要 `BaseMapperPlus` 重写还是 MPJ 联表。
-- 保持权限注解和联表风格一致。
+- 先看 `SysUserMapper`、`SysPostMapper` 和相关 service。
+- 数据权限用 `@DataPermission({@DataColumn(key = "deptName", value = "dept_id"), ...})`。
+- 联表需求走自定义 mapper 方法 + XML（当前仓库没有 MPJ 依赖），保持同模块现有做法。
+- 保持权限注解和查询风格一致。
 
 ## 案例 5：新增后端接口并同步前端骨架
 
@@ -67,9 +68,9 @@
 
 ### 期望执行方式
 
-- 先补后端 `controller/service`。
-- 再根据后端路由补前端 `src/api` 或 generator 风格的前端骨架。
-- 保证导出接口路径和前端下载调用一致。
+- 先补后端 `controller/service`（导出为 `POST /export` + `void` + `HttpServletResponse`）。
+- 再根据后端路由补前端 `src/api`，并按 `vm/ts/api.ts.vm`、`vm/ts/types.ts.vm` 的风格补 types。
+- 保证导出接口路径和前端 `proxy?.download` 调用一致。
 
 ## 案例 6：推荐的高质量任务描述
 

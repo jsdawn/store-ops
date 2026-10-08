@@ -7,16 +7,16 @@
 ```text
 使用 $frontend-crud-coding 为 system/client 补一套前端 CRUD 页面。
 后端接口已经有 /system/client/list、/system/client/{id}、POST /system/client、PUT /system/client、DELETE /system/client/{ids}。
-请参考 plus-ui Gitee 仓库 6.X-Vue 分支的项目内 gen 模板、src/views/demo/demo/index.vue 和现有 system/client 风格实现。
+请参考后端 ruoyi-gen 的 vm 模板、src/views/demo/demo/index.vue 和现有 system 模块风格实现。
 ```
 
 ### 期望执行方式
 
 - 先看 `src/api/system/client/*` 和 `src/views/system/client/index.vue` 是否已存在。
-- 再看 `src/views/demo/demo/index.vue` 的标准 hooks 版 CRUD 骨架。
-- 对照项目内 `gen/api.ts.ftl`、`gen/types.ts.ftl`、`gen/index.vue.ftl`。
+- 再看 `src/views/demo/demo/index.vue` 的标准 5.x CRUD 骨架。
+- 对照后端 `vm/ts/api.ts.vm`、`vm/ts/types.ts.vm`、`vm/vue/index.vue.vm`。
 - 生成或修改 `api/index.ts`、`types.ts`、`views/.../index.vue`。
-- 使用 `AxiosPromise` from `@/utils/api-types`、`PageResult` from `@/api/types`、`useLoading`、`useFormDialog`、`useSearchReset`、`useTableSelection`。
+- 使用 `AxiosPromise` from `axios`、`proxy?.download`、`reactive<DialogOption>`、`proxy?.$modal`。
 
 ## 案例 2：新增树表页面
 
@@ -24,15 +24,15 @@
 
 ```text
 使用 $frontend-crud-coding 为 demo/tree2 新增树表 CRUD，接口返回数组，字段包含 id、parentId、name、orderNum。
-参考 src/views/demo/tree/index.vue 和 workflow/category。
+参考 src/views/demo/tree/index.vue。
 ```
 
 ### 期望执行方式
 
-- 优先判断这是树表，不生成分页 `PageResult` 页面。
-- API 列表返回 `AxiosPromise<Tree2VO[]>`。
+- 优先判断这是树表，不生成分页页面。
+- API 列表返回 `AxiosPromise<Tree2VO[]>`，页面取 `res.data`。
 - `Query` 不继承 `PageQuery`。
-- 页面使用 `handleTree`、`row-key`、`tree-props`、`useTreeTableExpand`、`el-tree-select`。
+- 页面使用 `proxy?.handleTree`、`row-key`、`tree-props`、`el-tree-select`。
 - 新增子节点时从当前行带入 `parentId`。
 
 ## 案例 3：修改已有复杂列表页
@@ -48,9 +48,9 @@
 
 ### 期望执行方式
 
-- 判断这是“已有复杂页面增强”，不是重新生成 CRUD。
+- 判断这是"已有复杂页面增强"，不是重新生成 CRUD。
 - 优先阅读 `src/views/system/user/index.vue`。
-- 保留 `TreePanel`、导入弹窗、`right-toolbar` 列显隐、`UserViewDrawer`、角色分配路由、权限控制。
+- 保留树筛选面板、导入弹窗、`right-toolbar` 列显隐、详情抽屉、角色分配路由、权限控制。
 - 只增量修改搜索和查询参数处理。
 
 ## 案例 4：修改 workflow 页面
@@ -66,7 +66,7 @@
 - 优先看 `src/views/workflow/category/index.vue` 和 `src/api/workflow/category/*`。
 - 判断是否需要后端新增导出接口；前端导出路径保持 `workflow/category/export`。
 - 不迁移 system/user 的用户专属逻辑。
-- 保留树表、`useTreeTableExpand`、`handleTree` 和分类弹窗逻辑。
+- 保留树表、`proxy?.handleTree` 和分类弹窗逻辑。
 
 ## 案例 5：只补 API 和 types
 
@@ -79,8 +79,8 @@
 ### 期望执行方式
 
 - 只维护 `src/api/monitor/cache/index.ts` 和 `src/api/monitor/cache/types.ts`。
-- 仍然检查同目录 monitor API 的 `export function` / `export const` 风格。
-- 返回类型使用 `AxiosPromise` from `@/utils/api-types`。
+- 仍然检查同目录 monitor API 的导出风格。
+- 返回类型使用 `AxiosPromise` from `axios`。
 - 不创建页面，不改路由。
 
 ## 案例 6：接入后端新增状态切换接口
@@ -88,7 +88,7 @@
 ### 用户提问示例
 
 ```text
-使用 $frontend-crud-coding 给 system/client 页面接入 PUT /system/client/changeStatus，状态字段 status，参考 gen 模板。
+使用 $frontend-crud-coding 给 system/client 页面接入 PUT /system/client/changeStatus，状态字段 status，参考 vm 模板。
 ```
 
 ### 期望执行方式
@@ -107,7 +107,7 @@
 2. 新增状态筛选和导出
 3. API 路径沿用后端接口
 4. 参考 system/config 的工具栏与导出交互
-5. 参考 plus-ui Gitee 仓库 6.X-Vue 分支的 gen 模板补齐缺失 types
+5. 缺失的 types 参考后端 vm/ts/types.ts.vm 补齐
 ```
 
 ## 不推荐的任务描述

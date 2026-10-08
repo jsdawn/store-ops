@@ -1,12 +1,14 @@
 ---
 name: ruoyi-plus-ai-coding
-description: 在 store-ops-api（RuoYi-Cloud-Plus）仓库内按代码生成器模板、项目 reference 文档和既有约定生成或修改代码。当用户需要新增或修改 CRUD 模块、controller/service/mapper/BO/VO/entity、MyBatis-Plus/MPJ 查询、数据权限、缓存、翻译/JSON 增强、公共 common 模块能力、JavaDoc 注释，以及与后端接口配套的 Vue 3 + TypeScript 页面、types 和 api 文件时使用；触发后应先按任务类型读取对应 references，再阅读目标模块真实代码和 generator 模板。
+description: 在 store-ops-api（RuoYi-Cloud-Plus 2.x / RuoYi-Vue-Plus 5.x 体系）仓库内按代码生成器模板、项目 reference 文档和既有约定生成或修改代码。当用户需要新增或修改 CRUD 模块、controller/service/mapper/BO/VO/entity、MyBatis-Plus 查询、数据权限、缓存、翻译、公共 common 模块能力、JavaDoc 注释，以及与后端接口配套的 Vue 3 + TypeScript 页面、types 和 api 文件时使用；触发后应先按任务类型读取对应 references，再阅读目标模块真实代码和 generator 模板。
 agent_created: true
 ---
 
 # RuoYi Plus AI 编码规范
 
 先对齐代码生成器产物，再叠加仓库里真实业务代码已经形成的更强约定。
+
+当前仓库基线：RuoYi-Cloud-Plus 2.6.2（Spring Boot 3.5.x），对应 RuoYi-Vue-Plus 5.x 代码风格。
 
 ## 适用场景
 
@@ -15,10 +17,10 @@ agent_created: true
 - 新增标准 CRUD 模块。
 - 根据新表结构补齐 entity、bo、vo、mapper、service、controller。
 - 修改已有模块的查询、校验、导入导出、数据权限、事务逻辑。
-- 修改 `ruoyi-common` 公共能力，例如 mybatis 查询构造器、translation、json enhance、excel、oss、redis、web 配置。
+- 修改 `ruoyi-common` 公共能力，例如 mybatis、translation、json、excel、oss、redis、web、satoken、tenant 配置。
 - 修改 Cloud 专属能力，例如 `ruoyi-api` 远程契约、Dubbo provider/consumer、Gateway/Auth、Nacos 配置约定、Seata 分布式事务、服务间数据权限透传。
 - 补充或修正 JavaDoc 注释，尤其是公共 API、接口、BO/VO/Entity 字段、Mapper 默认方法、Service/Controller 方法。
-- 在系统、监控、工作流、demo 等模块内按现有约定扩展业务代码。
+- 在 system、job、resource、workflow、gen 等模块内按现有约定扩展业务代码。
 - 为后端新增接口同步补前端 `api/types/index.vue` 骨架。
 
 ## 不适用场景
@@ -26,7 +28,7 @@ agent_created: true
 下面这些任务不要机械套用本 skill 的 CRUD 规则：
 
 - 基础框架升级、Spring Boot 主版本迁移。
-- 与当前分层明显不同的实验性模块。
+- 与当前分层明显不同的实验性模块（可参考 `ruoyi-example`）。
 - 第三方中间件深度接入、基础设施改造。
 - 完全脱离 generator 体系的独立子系统。
 
@@ -34,9 +36,9 @@ agent_created: true
 
 1. 先判断任务类型，并按"文档读取规则"读取当前任务需要的 reference。
 2. 确认目标模块，优先复用同模块中最近似功能的写法。
-3. 新增标准 CRUD 代码前，先读取 `ruoyi-modules/ruoyi-gen/src/main/resources/fm/` 下的模板。
+3. 新增标准 CRUD 代码前，先读取 `ruoyi-modules/ruoyi-gen/src/main/resources/vm/` 下的 Velocity 模板（`.vm`，不是 `.ftl`）。
 4. 命名和分层保持与仓库一致：
-   `domain` entity、`domain.bo`、`domain.vo`、`mapper`、`service`、`service.impl`、`controller`。
+   `domain` entity、`domain.bo`、`domain.vo`、`mapper`、`service`（接口 `IXxxService`）、`service.impl`、`controller`（可按业务再分子包，如 `controller/system`）。
 5. 优先在生成器结构上扩展，不要自行发明新的分层。
 6. 修改 `ruoyi-system` 这类复杂模块前，先阅读同类现有实现，因为这些模块通常比生成器默认产物多出数据权限、联表、缓存、安全校验等逻辑。
 7. 修改 `ruoyi-common` 公共模块前，先阅读同包接口、实现类和调用点，优先保持已有 API 语义与兼容性。
@@ -87,7 +89,7 @@ Vue 3、TypeScript API 文件、生成式列表页、表单状态、字典和日
 ## 仓库通用规则
 
 - 遵循仓库根的 `.editorconfig`：UTF-8、LF，默认 4 空格，JSON/YAML 为 2 空格。
-- 不要把 `BaseMapperPlus`、`PageQuery`、`PageResult`、`R`、`MapstructUtils` 或项目工具类替换成临时自造方案。
+- 不要把 `BaseMapperPlus`、`PageQuery`、`TableDataInfo`、`R`、`MapstructUtils` 或项目工具类替换成临时自造方案。
 - 仓库已使用 `List.of(...)` 的地方，数组转列表优先继续沿用。
 - import、注解顺序、文件结构以附近代码为准，不要顺手重排整个文件。
 - 只有在业务逻辑不直观时才加简短注释。
@@ -111,18 +113,20 @@ Vue 3、TypeScript API 文件、生成式列表页、表单状态、字典和日
 - `src/main/java/.../mapper/EntityMapper.java`
 - `src/main/java/.../service/IEntityService.java`
 - `src/main/java/.../service/impl/EntityServiceImpl.java`
-- `src/main/java/.../controller/EntityController.java`
+- `src/main/java/.../controller/EntityController.java`（system 等模块会再分子包，如 `controller/system/SysPostController.java`）
 
-标准生成器模板通常对应：
+标准生成器模板对应 `ruoyi-modules/ruoyi-gen/src/main/resources/vm/`：
 
-- `fm/java/domain.java.ftl` -> entity
-- `fm/java/bo.java.ftl` -> bo
-- `fm/java/vo.java.ftl` -> vo
-- `fm/java/mapper.java.ftl` -> mapper
-- `fm/java/service.java.ftl` -> service interface
-- `fm/java/serviceImpl.java.ftl` -> service impl
-- `fm/java/controller.java.ftl` -> controller
-- `fm/xml/mapper.xml.ftl` -> 自定义 XML mapper 起点
+- `vm/java/domain.java.vm` -> entity
+- `vm/java/bo.java.vm` -> bo
+- `vm/java/vo.java.vm` -> vo
+- `vm/java/mapper.java.vm` -> mapper
+- `vm/java/service.java.vm` -> service interface
+- `vm/java/serviceImpl.java.vm` -> service impl
+- `vm/java/controller.java.vm` -> controller
+- `vm/xml/mapper.xml.vm` -> 自定义 XML mapper 起点
+- `vm/vue/index.vue.vm`、`vm/vue/index-tree.vue.vm` -> 前端页面
+- `vm/ts/api.ts.vm`、`vm/ts/types.ts.vm` -> 前端 API 与类型
 
 ## 任务分型
 
@@ -140,7 +144,7 @@ Vue 3、TypeScript API 文件、生成式列表页、表单状态、字典和日
 
 ### 4. 公共基础模块修改
 
-修改 `ruoyi-common` 下的基础能力时，优先保证二进制/API 兼容：不要轻易改公开方法签名、泛型、返回值或异常语义。新增注释和小范围能力时，先查同包现有风格，例如 `common-mybatis` 的链式 wrapper、`common-translation` 的 `TranslationInterface` 实现、`common-json` 的字段处理器。
+修改 `ruoyi-common` 下的基础能力时，优先保证二进制/API 兼容：不要轻易改公开方法签名、泛型、返回值或异常语义。新增注释和小范围能力时，先查同包现有风格，例如 `common-mybatis` 的 `BaseMapperPlus` 派生查询方法、`common-translation` 的 `TranslationInterface` 实现。
 
 ### 5. 注释修正任务
 
@@ -161,18 +165,16 @@ Vue 3、TypeScript API 文件、生成式列表页、表单状态、字典和日
 - 包路径和 `@RequestMapping` 与模块保持一致。
 - 权限标识遵循 `${module}:${business}:${action}`。
 - Mapper 继承 `BaseMapperPlus<Entity, Vo>`。
-- 手写 Service 注入 Mapper 时使用具体业务短名；代码生成器模板按类名首字母小写命名，例如 `SysRoleMapper` 生成 `sysRoleMapper`。
-- Service 按场景返回 `PageResult` 或 `List<Vo>`。
-- 查询代码优先使用 `QueryBuilder.lambda(...)` 构造 `LambdaQueryWrapper`，复杂模块沿用 `QueryBuilder.lambdaJoin(...)` 的 MPJ 联表风格。
-- 公共 Mapper 链式能力优先沿用 `QueryBuilder.lambda(...)`、`QueryBuilder.lambdaJoin(...)`、`LambdaCrudChainWrapper`、`LambdaQueryBuilder`、`LambdaJoinQueryBuilder`、`LambdaQueryCondition` 的 `IfPresent` / `IfText` / `IfNotEmpty` 风格。
-- 翻译能力优先沿用 `TranslationInterface` + `@TranslationType` + `@Translation`，批量翻译实现 `translationBatch`，避免退化成逐条查询。
-- JSON 响应增强优先沿用 `JsonFieldProcessor` 的 `collect` / `prepare` / `process` 三阶段模型。
+- 手写 Service 注入 Mapper 时，生成器风格和 system 模块均命名为 `baseMapper`；只有同模块出现第二个 Mapper 时才用业务短名区分。
+- 分页返回 `TableDataInfo<Vo>`，用 `TableDataInfo.build(page)` 构造；list 接口直接返回 `TableDataInfo`，不包 `R`。
+- 查询条件集中放在私有 `buildQueryWrapper(bo)` 方法，使用 `Wrappers.lambdaQuery()` 或 `new LambdaQueryWrapper<>()`，条件谓词手写在链上；不要引入本仓库不存在的 QueryBuilder / 链式 IfPresent 工具。
+- 翻译能力实现 `TranslationInterface<T>` + `@TranslationType`，实现 `translation(Object key, String other)`；当前版本没有批量翻译接口，注意控制 N+1 查询。
 - Cloud 服务间调用优先通过 `ruoyi-api-*` 的 `RemoteXxxService` 契约和 `@DubboReference` / `@DubboService`，不要跨模块直接注入对方 mapper/service。
 - 涉及跨服务写入、文件上传、消息推送、工作流联动时检查是否需要 `@GlobalTransactional`、Dubbo 降级 `mock/stub`、数据权限上下文透传和 Nacos/Gateway 配置。
-- BO 使用 `@AutoMapper(target = Entity.class, reverseConvertGenerate = false)`。
-- VO 使用 `@AutoMapper(target = Entity.class)`。
+- BO 继承 `BaseEntity` 并使用 `@AutoMapper(target = Entity.class, reverseConvertGenerate = false)`。
+- VO 使用 `@AutoMapper(target = Entity.class)`，Excel 注解来自 `cn.idev.excel`（FastExcel）与 `common-excel` 的字典转换器。
 - 前端 API 路径与后端路由完全对应。
-- 前端列表页优先沿用 generator 模板里的 `useLoading`、`useSearchReset`、`useTableSelection`、`useFormDialog`、`useDateRangeQuery`、`modal.confirm`、`requestDownload`、`useDict`、`pagination` 等工具。
+- 前端列表页按 plus-ui 5.x 标准 RuoYi 风格编写：`proxy?.download`、`proxy?.$modal`、`reactive<DialogOption>`，不使用 6.x 的 hooks 体系。
 
 ## 推荐提问方式
 
@@ -186,5 +188,5 @@ Vue 3、TypeScript API 文件、生成式列表页、表单状态、字典和日
 
 例如：
 
-- 使用 `ruoyi-plus-ai-coding` skill 在 `system` 模块新增一个标准单表 CRUD，参考 `SysConfig` 与 generator 模板。
+- 使用 `ruoyi-plus-ai-coding` skill 在 `system` 模块新增一个标准单表 CRUD，参考 `SysPost` 与 generator 模板。
 - 使用 `ruoyi-plus-ai-coding` skill 修改 `workflow/category` 的查询和导出逻辑，保持现有模块风格。

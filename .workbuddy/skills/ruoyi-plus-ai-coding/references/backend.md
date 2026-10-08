@@ -2,14 +2,17 @@
 
 ## 优先参考的代码来源
 
-- `ruoyi-modules/ruoyi-gen/src/main/resources/fm/java/*.ftl`
-- `ruoyi-modules/ruoyi-demo/...`
+- `ruoyi-modules/ruoyi-gen/src/main/resources/vm/java/*.vm`
 - `ruoyi-modules/ruoyi-system/...`
 - `ruoyi-modules/ruoyi-workflow/...`
+- `ruoyi-modules/ruoyi-job/...`
+- `ruoyi-modules/ruoyi-resource/...`
 - `ruoyi-api/...`
 - `ruoyi-auth/...`
 - `ruoyi-gateway/...`
 - `ruoyi-common/ruoyi-common-mybatis/...`
+
+注意：当前仓库没有独立的 `ruoyi-demo` 模块；标准 CRUD 参考以 generator 模板和 `ruoyi-system` 中简单模块（如岗位 SysPost）为准。
 
 ## 决策顺序
 
@@ -32,7 +35,7 @@
 - `mapper/EntityMapper.java`
 - `service/IEntityService.java`
 - `service/impl/EntityServiceImpl.java`
-- `controller/EntityController.java`
+- `controller/EntityController.java`（复杂模块可再分子包）
 
 ## Entity 规则
 
@@ -45,31 +48,31 @@
 
 ## BO 规则
 
-- 实现 `Serializable`。
-- 添加 `@AutoMapper(target = Entity.class, reverseConvertGenerate = false)`。
-- 请求专用字段、查询专用字段放在 BO 中，包括 `params`。
-- 在生成器或附近代码已有分组校验时，继续使用：`AddGroup`、`EditGroup`、`QueryGroup`。
+- 继承 `org.dromara.common.mybatis.core.domain.BaseEntity`（`params`、创建/更新审计字段由父类提供）。
+- 添加 `@AutoMapper(target = Entity.class, reverseConvertGenerate = false)`（来自 `io.github.linpeilie.annotations`）。
+- 请求专用字段、查询专用字段放在 BO 中。
+- 在生成器或附近代码已有分组校验时，继续使用：`AddGroup`、`EditGroup`（校验注解上写 `groups = {AddGroup.class}` 形式）。
 - `@Xss`、`@Email`、`@Size`、`@NotBlank`、`@NotNull` 要按真实业务语义添加，不要一股脑全套上。
-- 查询存在日期范围或扩展条件时，保留 `params = new HashMap<>()`。
+- 查询存在日期范围时依赖 `BaseEntity.params`，不需要重复声明。
 
 ## VO 规则
 
-- 实现 `Serializable`。
+- 实现 `Serializable`（或按同模块现状）。
 - 添加 `@AutoMapper(target = Entity.class)`。
-- 生成器风格的导出对象通常带 `@ExcelIgnoreUnannotated`。
-- `@ExcelProperty`、`@ExcelDictFormat`、`ExcelDictConvert`、`@ExcelRequired`、`@ExcelNotation`、`@DateTimeFormat` 只在导入导出场景下使用。
-- 如果附近代码会把 ID 翻译成展示字段，沿用 `@Translation(type = TransConstant.USER_ID_TO_NAME, mapper = "createBy")` 这类写法。
+- 导出对象带 `@ExcelIgnoreUnannotated`，注解来自 `cn.idev.excel.annotation`（FastExcel，不是 com.alibaba.excel / EasyExcel 旧包名）。
+- `@ExcelProperty`、`@ExcelDictFormat`、`ExcelDictConvert`（后两者来自 `org.dromara.common.excel`）只在导入导出场景下使用。
+- 如果附近代码会把 ID 翻译成展示字段，沿用 `@Translation(type = TransConstant.XXX, mapper = "createBy")` 这类写法。
 - 展示型派生字段放在 VO，不放在 Entity。
 
 ## Mapper 规则
 
 - 默认形式是 `interface XxxMapper extends BaseMapperPlus<Xxx, XxxVo>`。
-- 不要为简单的 entity 转 vo 手写重复代码，优先依赖 `BaseMapperPlus`。
+- 不要为简单的 entity 转 vo 手写重复代码，优先依赖 `BaseMapperPlus` 的 `selectVoById / selectVoList / selectVoPage / insertVo?` 系列方法。
 - 模块已经使用 `@DataPermission` 时，在重写方法和自定义查询上继续保留。
-- 复杂模块里 mapper 可能同时继承 `MPJBaseMapper<Entity>` 并使用 `QueryBuilder.lambdaJoin(...)` 构造 MPJ 查询，遇到这种风格要延续，不要换一种写法。
-- 只有在 `selectVoList/selectVoPage` 不够用时，才补 XML 或自定义 mapper 方法。
+- 只有在 `selectVoList/selectVoPage` 不够用时，才补 XML 或自定义 mapper 方法（如 `SysPostMapper.selectPagePostList`）。
 - Mapper 默认方法可以承载短小的 wrapper 查询；涉及复杂业务编排、缓存、事务或跨 mapper 写入时放到 service。
-- `ruoyi-system` 的用户、角色、菜单、部门等模块常带数据权限、MPJ 联表、角色状态过滤，修改前先读对应 mapper/service。
+- `ruoyi-system` 的用户、角色、菜单、部门等模块常带数据权限、角色状态过滤，修改前先读对应 mapper/service。
+- 当前版本没有 MPJ（MyBatis-Plus-Join）依赖和 `MPJBaseMapper`；联表需求优先自定义 mapper 方法 + XML 或参考同模块现有做法，不要凭空引入新依赖。
 
 ### Mapper 建议结构
 
@@ -92,19 +95,21 @@
 ## Service 规则
 
 - 类声明通常是 `@RequiredArgsConstructor`、`@Service`，按需补 `@Slf4j`。
-- 手写 mapper 注入字段使用具体业务短名；代码生成器模板按类名首字母小写命名。
-- 命名时去掉清晰的模块/系统前缀后使用 lowerCamel + `Mapper`，例如 `SysRoleMapper` -> `roleMapper`、`SysDictDataMapper` -> `dictDataMapper`。
-- 如果去掉前缀会产生歧义或命名冲突，保留必要前缀。
-- 读操作通常返回 `Vo`、`List<Vo>` 或 `PageResult<Vo>`。
+- 主业务 Mapper 注入字段统一命名为 `baseMapper`；模块内出现第二个 Mapper 时才使用业务短名（如 `deptMapper`、`userPostMapper`）。
+- 两种方法命名风格并存，跟随所在模块：
+  - generator 风格（新模块默认）：`queryById`、`queryPageList`、`queryList`、`insertByBo`、`updateByBo`、`deleteWithValidByIds`，写操作返回 `Boolean`。
+  - system 手写风格：`selectPageXxxList`、`selectXxxById`、`insertXxx`、`updateXxx`、`deleteXxxByIds`，写操作返回 `int`。
+- 读操作通常返回 `Vo`、`List<Vo>` 或 `TableDataInfo<Vo>`。
 - BO 转实体用 `MapstructUtils.convert(bo, Entity.class)`。
-- 查询条件优先返回 `LambdaQueryWrapper`；新增 generator 风格代码优先用 `QueryBuilder.lambda(Entity.class)`，老模块已有 `Wrappers.lambdaQuery()` 时可继续保持。
-- 字符串和空值条件优先用 `eqIfText`、`likeIfText`、`eqIfPresent`、`inIfNotEmpty`、`betweenParams` 等项目扩展；老代码已有直接 `StringUtils.isNotBlank(...)` 和 null 判断时可增量保持。
-- 分页查询优先采用：
-  `Page<Vo> result = entityMapper.selectVoPage(pageQuery.build(), lqw);`
-  `return PageResult.build(result.getRecords(), result.getTotal());`
-- 生成器风格模块保留 `validEntityBeforeSave(...)` 这种扩展点。
+- 查询条件集中在私有 `buildQueryWrapper(bo)` 方法内返回 `LambdaQueryWrapper`，使用 `Wrappers.lambdaQuery()` 或 `new LambdaQueryWrapper<>()`。
+- 条件谓词直接写在链上：字符串用 `StringUtils.isNotBlank(...)`，对象用 `ObjectUtil.isNotNull(...)` / `!= null`，集合用 `CollUtil.isNotEmpty(...)`；当前版本没有 `eqIfPresent` / `likeIfText` 等链式扩展方法。
+- 日期范围从 `bo.getParams()` 取 `beginTime`、`endTime`（或 `begin字段名` / `end字段名`），用 `.between(条件, Entity::getField, begin, end)`。
+- 分页查询采用：
+  `Page<Vo> result = baseMapper.selectVoPage(pageQuery.build(), lqw);`
+  `return TableDataInfo.build(result);`
+- generator 风格模块保留 `validEntityBeforeSave(...)` 扩展点。
 - 多表写操作使用 `@Transactional(rollbackFor = Exception.class)`。
-- 明确的业务失败，尤其是权限、数据完整性、删除校验，使用 `ServiceException`。
+- 明确的业务失败，尤其是权限、数据完整性、删除校验，使用 `ServiceException`（如 `throw new ServiceException("{}已分配，不能删除!", post.getPostName())`）。
 - 不要绕过模块现有的数据权限、角色校验、删除前校验。
 
 ### Service 建议结构
@@ -114,19 +119,12 @@
 1. 查询单条
 2. 分页查询
 3. 列表查询
-4. 构建查询条件
+4. 构建查询条件（`buildQueryWrapper`，私有）
 5. 新增
 6. 修改
-7. 保存前校验
+7. 保存前校验（`validEntityBeforeSave` 或 `checkXxxUnique`）
 8. 删除前校验与删除
 9. 其他扩展业务方法
-
-### 查询逻辑建议
-
-- 单表查询优先返回 `LambdaQueryWrapper`，生成器风格优先通过 `QueryBuilder.lambda(Entity.class).build()` 构造。
-- 条件判断直接放在 wrapper 链式条件上，不要额外写大量 if 套壳。
-- 日期范围统一从 `bo.getParams()` 取 begin/end；生成器默认使用 `betweenParams(Entity::getField, params, "beginField", "endField")`。
-- 复杂联表查询优先查同模块是否已有 MPJ 风格可复用；新写法优先用 `QueryBuilder.lambdaJoin("u", Entity.class)`。
 
 ### 写入逻辑建议
 
@@ -136,16 +134,20 @@
 
 ## Controller 规则
 
-- 继承 `BaseController`。
+- 继承 `BaseController`（`org.dromara.common.web.core`）。
 - 类上通常带 `@Validated`、`@RestController`、`@RequiredArgsConstructor`、`@RequestMapping`。
-- 返回值使用 `R<T>` 或 `R<Void>`。
+- 类名惯例为 `XxxController`。
+- `@RequestMapping("/businessName")` 只写业务段，模块前缀由网关路由承担；权限标识仍带模块前缀 `${module}:${business}:${action}`。
 - 标准 CRUD 接口通常是：`GET /list`、`POST /export`、`GET /{id}`、`POST`、`PUT`、`DELETE /{ids}`。
-- 树表接口通常不分页，`list` 返回 `R<List<Vo>>`；导出路由以目标模块或 generator 模板为准，旧 demo 树表存在 `GET /export`，新版生成器通常是 `POST /export`。
-- `@SaCheckPermission` 权限格式遵循 `${module}:${business}:${action}`。
+- 分页 list 直接返回 `TableDataInfo<Vo>`（不包 `R`）；树表 list 返回 `R<List<Vo>>`。
+- 导出接口返回 `void`，签名 `export(XxxBo bo, HttpServletResponse response)`，内部
+  `ExcelUtil.exportExcel(list, "名称", XxxVo.class, response)`，路由 `POST /export`。
+- 新增/修改使用 `toAjax(service.xxx(bo))`，唯一性校验失败在 controller 内 `return R.fail("...")` 并给出中文业务提示。
 - 写操作、导入导出接口通常加 `@Log(title = "...", businessType = BusinessType.X)`。
 - 附近接口已有防重时，写接口继续使用 `@RepeatSubmit`。
 - 适合分组校验时，使用 `@Validated(AddGroup.class)` 和 `@Validated(EditGroup.class)`。
-- 特殊接口直接复用模块内现成做法，例如导入导出、`@ApiEncrypt`、multipart 上传、数据权限检查、写入前唯一性校验。
+- 详情接口主键参数常带 `@NotNull(message = "主键不能为空")`，删除接口用 `@PathVariable Long[] ids`。
+- 特殊接口直接复用模块内现成做法，例如 `optionselect`、`deptTree`、导入导出、`@ApiEncrypt`、multipart 上传、写入前唯一性校验。
 
 ### Controller 建议结构
 
@@ -157,7 +159,7 @@
 4. 新增
 5. 修改
 6. 删除
-7. 特殊接口
+7. 特殊接口（下拉选项、树列表等）
 
 ### Controller 边界
 
@@ -167,11 +169,11 @@
 
 ## 查询与工具规则
 
-- 分页统一使用 `PageQuery` 和 `PageResult`，不要无故引入新的分页 DTO。
+- 分页统一使用 `PageQuery` 和 `TableDataInfo`，不要无故引入新的分页 DTO，也不要使用 `PageResult`（该类不存在）。
 - 优先使用项目工具类：`MapstructUtils`、`StringUtils`、`StreamUtils`、`ValidatorUtils`、`SpringUtils`、`RedisUtils`。
 - 数组转列表按附近代码习惯使用 `List.of(ids)` 或 `Arrays.asList(ids)`。
-- 日期范围查询通常从 `bo.getParams()` 中读取 `beginTime`、`endTime` 或 `beginFieldName`、`endFieldName`。
-- 构建查询优先识别 `QueryBuilder.lambda(...)`、`QueryBuilder.lambdaJoin(...)`、`BaseMapperPlus#lambda()` 三类入口，不要退回临时手写 SQL 或自造 wrapper。
+- 日期范围查询从 `bo.getParams()` 中读取 `beginTime`、`endTime` 或 `begin字段名`、`end字段名`。
+- 不要使用本仓库不存在的 `QueryBuilder`、`LambdaQueryBuilder`、`LambdaCrudChainWrapper` 等工具；查询构造只用 MyBatis-Plus 原生 `Wrappers.lambdaQuery()` / `new LambdaQueryWrapper<>()`。
 
 ## Cloud 服务规则
 
@@ -182,20 +184,16 @@
 
 ## common-mybatis 规则
 
-- 链式查询能力优先沿用 `QueryBuilder.lambda(...)`、`QueryBuilder.lambdaJoin(...)`、`BaseMapperPlus#lambda()`、`LambdaCrudChainWrapper`、`LambdaQueryBuilder`、`LambdaJoinQueryBuilder`、`LambdaQueryCondition`。
-- 条件辅助方法使用项目已有命名：`eqIfPresent`、`eqIfText`、`neIfPresent`、`likeIfText`、`betweenIfPresent`、`betweenParams`、`inIfNotEmpty`、`findInSetIfPresent`。
-- 新增 wrapper 方法时保持链式返回 `this` / `typedThis`，不要返回底层 `LambdaQueryWrapper` 破坏调用链。
-- `LambdaCrudChainWrapper` 既承担查询又承担更新 set 片段，新增能力时要同时考虑 `getSqlSelect`、`getSqlSet`、`clear`、`instance` 的状态复制和清理。
-- MPJ 联表查询沿用别名风格，例如 `QueryBuilder.lambdaJoin("u", SysUser.class)`、`.leftJoin(..., "d", ...)`、`.eq("u", Entity::getField, value)`。
-- 数据权限注解使用 `@DataPermission` + `@DataColumn`，列名需和实际 SQL 别名一致，例如 `d.dept_id`、`u.create_by`。
+- 公共能力以 `BaseMapperPlus<T, V>`、`PageQuery`、`TableDataInfo`、`BaseEntity` 为主。
+- 数据权限注解使用 `@DataPermission({ @DataColumn(key = "deptName", value = "dept_id"), @DataColumn(key = "userName", value = "create_by") })`，注解在 `org.dromara.common.mybatis.annotation` 包。
+- Dubbo 调用链上的数据权限透传由 `common-mybatis` 里的 `DubboDataPermissionFilter` 承担，不要随意绕过。
+- 新增派生查询方法时遵循 MP 原生命名，不引入第三方增强包。
 
-## translation / JSON 增强规则
+## translation 规则
 
-- 翻译实现类实现 `TranslationInterface<T>` 并标注 `@TranslationType(type = ...)`。
+- 翻译实现类实现 `org.dromara.common.translation.core.TranslationInterface<T>` 并标注 `@TranslationType(type = ...)`，只实现 `T translation(Object key, String other)` 一个方法。
 - 使用方在 VO 字段上通过 `@Translation(type = ..., mapper = "...", other = "...")` 指定翻译来源。
-- 批量翻译必须优先实现 `translationBatch(Set<Object> keys, String other)`，避免默认逐条查询。
-- 支持逗号分隔 ID 的翻译实现应复用 `collectLongIds`、`parseLongIds`、`joinMappedValues`。
-- `TranslationJsonFieldProcessor` 遵循三阶段：`collect` 收集待翻译值，`prepare` 批量查询，`process` 写入翻译结果；新增处理器也应优先套这个模型。
+- 当前版本没有 `translationBatch` 批量接口，也没有 JSON 响应级翻译处理器（`common-json` 只有序列化配置）；新写翻译实现时注意在实现内部控制查询次数（如缓存、批量预查），避免列表页 N+1。
 - 翻译失败时保持降级返回原值或 `null` 的现有语义，不要让响应增强中断主流程。
 
 ## 缓存与异步/监听规则
@@ -203,18 +201,18 @@
 - 已有 service 使用 `@Cacheable`、`@CachePut`、`@CacheEvict`、`@Caching` 或 `CacheUtils.evict/clear` 时，新增写操作要同步考虑缓存失效。
 - 部门、字典、OSS 配置等模块已有缓存初始化或失效逻辑，不要只改数据库不处理缓存；字典这类模块常同时维护 `CacheNames.SYS_DICT` 与 `CacheNames.SYS_DICT_TYPE`。
 - Excel 导入监听器实现 `ExcelListener` 时，保留 `getExcelResult()` 的回执语义和错误聚合方式。
-- 定时任务、MQTT、SSE、异步回调等框架方法一般按接口覆写语义实现，除非业务不直观，不要添加冗长注释。
+- 定时任务（SnailJob，`ruoyi-job`）、MQTT、SSE、异步回调等框架方法一般按接口覆写语义实现，除非业务不直观，不要添加冗长注释。
 
 ## 工作流模块规则
 
-- `ruoyi-workflow` 通常带 `@ConditionalOnEnable`，新增 workflow bean、controller、service 时检查同包是否需要该条件。
+- `ruoyi-workflow`（WarmFlow 体系）带 `@ConditionalOnEnable` 条件注解，新增 workflow bean、controller、service 时检查同包是否需要该条件。
 - 流程分类、任务、实例等查询常带分类权限或用户维度过滤，先读同类 mapper/service 再改。
-- 工作流的翻译实现可以放在 workflow 模块内，例如流程分类 ID 到名称，仍应遵守 `TranslationInterface` 批量翻译规则。
+- 工作流的翻译实现可以放在 workflow 模块内，例如流程分类 ID 到名称，仍应遵守 `TranslationInterface` 规则。
 
 ## JavaDoc 注释规则
 
 - 公共 API、接口、VO/BO/Entity 字段、Mapper 默认方法、Service/Controller 方法应有简洁 JavaDoc。
-- 注释描述“做什么”和关键参数语义，不复述显而易见的实现细节。
+- 注释描述"做什么"和关键参数语义，不复述显而易见的实现细节。
 - `void` 方法不要写 `@return`；返回布尔值时说明 `true/false` 含义。
 - 私有方法只有在业务规则、算法、映射关系不直观时补注释。
 - 框架覆写方法如果只是标准回调，可不重复注释；但当前文件已有统一注释风格时保持一致。
@@ -223,8 +221,8 @@
 ## 前后端联动规则
 
 - 新增后端接口时，路径和权限前缀尽量保持 generator 约定，方便前端目录和 API 命名同步。
-- 新增日期范围查询时，记得保留 `bo.params` 结构，避免前端 `addDateRange` 无法对接。
-- 导出接口通常保持 `POST /export` 风格，便于前端直接复用现有下载逻辑。
+- 新增日期范围查询时，记得保留 `bo.params` 结构（`beginXxx` / `endXxx`），避免前端日期控件无法对接。
+- 导出接口保持 `POST /export` + `void` + `HttpServletResponse` 风格，便于前端直接复用 `proxy?.download` 下载逻辑。
 - 批量删除接口通常使用 `DELETE /{ids}`，便于前端直接传数组或逗号串。
 
 ## 生成器优先模式
@@ -240,9 +238,8 @@
 
 然后再叠加模块内已有增强，例如：
 
-- 唯一性校验
+- 唯一性校验（`checkXxxUnique`）
 - 数据权限注解
-- MPJ 联表查询
 - 缓存注解
 - Excel 导入导出监听器
 - 关联表维护逻辑
@@ -257,7 +254,7 @@
 
 - 目标模块已经有类似业务。
 - 涉及数据权限、联表、缓存、角色岗位关系、导入导出、工作流扩展时。
-- 任务是“修改已有模块”而不是“新建模块”时。
+- 任务是"修改已有模块"而不是"新建模块"时。
 
 ## 避免事项
 
@@ -266,6 +263,7 @@
 - 没有明确必要时，不要从 `BaseMapperPlus` 风格退回手工映射。
 - 前端查询页用了日期范围时，不要删掉后端 `params` 相关处理。
 - 不要把 `ruoyi-system` 这类复杂逻辑强行简化成生成器式单表 CRUD。
+- 不要使用 `PageResult`、`QueryBuilder`、链式 `IfPresent` 条件、`translationBatch`、`JsonFieldProcessor` 这些当前版本不存在的 API。
 
 ## 交付前自检
 
@@ -273,6 +271,6 @@
 
 - CRUD 主链路是否完整。
 - BO / VO / Entity 职责是否清晰。
-- 分页、查询、删除校验是否与前端对得上。
+- 分页、查询、删除校验是否与前端对得上（`TableDataInfo` 的 `rows` / `total`）。
 - 权限、日志、防重、事务是否遗漏。
 - 是否只是 generator 裸产物，如果是，需要继续补齐同模块已有增强。
