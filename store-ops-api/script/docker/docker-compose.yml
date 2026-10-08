@@ -1,3 +1,6 @@
+# 官方编排默认模板，尽量不改动
+# 各环境拓展 docker-compose.[env].yml 文件进行相应编排
+
 services:
   mysql:
     image: mysql:8.0.42
