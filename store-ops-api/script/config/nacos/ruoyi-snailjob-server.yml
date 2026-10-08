@@ -21,7 +21,8 @@ spring:
           management.context-path: ${server.servlet.context-path}/actuator
           # 监控账号密码
           username: ruoyi
-          userpassword: 123456
+          # 变量化: 默认值与官方一致,部署 snailjob 时在 .env 注入强密码
+          userpassword: ${MONITOR_PASSWORD:123456}
 
 # snail-job 服务端配置
 snail-job:

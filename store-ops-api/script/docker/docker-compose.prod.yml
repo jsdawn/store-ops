@@ -1,12 +1,14 @@
 # =====================================================================
 # store-ops prod 编排(Linux 服务器,host 网络,对齐官方 docker-compose.yml)
 #
-# 与官方编排的差异(仅两处,均已注释标明):
+# 与官方编排的差异(均已注释标明):
 #   1. 密钥从 .env 读取(mysql/redis/minio/nacos 配置库/seata 凭据)
-#   2. nacos/seata 挂载 override 覆盖文件,使镜像内烘焙的 127.0.0.1 + root/root
-#      连接信息与 .env 强密码保持一致(host 网络下地址值与官方相同)
-#   3. 扩展服务(elk/rocketmq/rabbitmq/kafka/skywalking/prometheus/grafana 等)
-#      不在本文件,需要时参照官方 docker-compose.yml 扩展段
+#   2. nacos 经 environment(DB_URL_0 三键)注入配置库连接;seata 挂载 override 覆盖文件
+#      ——使镜像内烘焙的 127.0.0.1 + root/root 与 .env 强密码保持一致(host 网络下地址值与官方相同)
+#   3. ruoyi-* 服务注入 MYSQL_ROOT_PASSWORD/REDIS_PASSWORD: 微服务从 Nacos 拉取的
+#      datasource.yml/application-common.yml 含 ${VAR} 占位符,运行期由容器环境变量解析
+#   4. 扩展服务(elk/rocketmq/rabbitmq/kafka/skywalking/prometheus/grafana 等)
+#      不在本文件,需要时参照官方 docker-compose.yml 扩展段添加
 #
 # 部署约定(官方假设): 本文件与 mysql/nacos/redis 等子目录上传至服务器 /docker 下,
 # 挂载路径 /docker/... 与官方完全一致
@@ -56,17 +58,17 @@ services:
     environment:
       TZ: Asia/Shanghai
       JAVA_OPTS: "-Xms256m -Xmx512m"
-      # host 网络下与官方烘焙值一致(经 override 文件注入,地址用 127.0.0.1、密码走 .env)
-      NACOS_DB_HOST: 127.0.0.1
-      NACOS_DB_USER: root
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      # Spring 属性映射: DB_URL_0/DB_USER_0/DB_PASSWORD_0 覆盖 db.url.0 三键
+      # (Nacos 自研 PropertyUtil 不解析 ${VAR} 占位符,禁止改回 override 文件方案)
+      # host 网络: 与官方烘焙值一致指向 127.0.0.1,密码走 .env
+      DB_URL_0: "jdbc:mysql://127.0.0.1:3306/ry-config?characterEncoding=utf8&connectTimeout=1000&socketTimeout=3000&autoReconnect=true&useUnicode=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true"
+      DB_USER_0: root
+      DB_PASSWORD_0: ${MYSQL_ROOT_PASSWORD}
     volumes:
       # 日志目录 注意集群模式下 日志目录不能一致 需要区分例如 nacos1 nacos2
       - /docker/nacos/logs/:/root/nacos/logs
       # 集群配置文件 集群所有nacos都必须使用此文件
       - /docker/nacos/conf/cluster.conf:/root/nacos/conf/cluster.conf
-      # 自建覆盖文件: 仅覆盖 db.url.0/db.user.0/db.password.0 三键
-      - /docker/nacos/override/application.properties:/ruoyi/nacos/config/application.properties
     network_mode: "host"
 
   redis:
@@ -80,9 +82,9 @@ services:
     volumes:
       # 配置文件
       - /docker/redis/conf:/redis/config
-      # 数据文件
-      - /docker/redis/data/:/redis/data/
-    # 命令行参数优先于配置文件: 密码统一走 .env(官方 redis.conf 烘焙 ruoyi123)
+      # 数据文件: 挂 /data(redis 用户属主)规避 AOF 目录权限问题,与 dev 同策略
+      - /docker/redis/data/:/data/
+    # 命令行参数优先于配置文件: 密码统一走 .env(dir 已在 conf 中适配为 /data)
     command: "redis-server /redis/config/redis.conf --requirepass ${REDIS_PASSWORD}"
     privileged: true
     network_mode: "host"
@@ -204,6 +206,9 @@ services:
     environment:
       # 时区上海
       TZ: Asia/Shanghai
+      # 微服务占位符解析: Nacos 拉取的 datasource.yml/application-common.yml 含 ${VAR}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
     ports:
       - "8080:8080"
     volumes:
@@ -220,6 +225,9 @@ services:
     environment:
       # 时区上海
       TZ: Asia/Shanghai
+      # 微服务占位符解析: Nacos 拉取的 datasource.yml/application-common.yml 含 ${VAR}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
     ports:
       - "9210:9210"
     volumes:
@@ -236,6 +244,9 @@ services:
     environment:
       # 时区上海
       TZ: Asia/Shanghai
+      # 微服务占位符解析: Nacos 拉取的 datasource.yml/application-common.yml 含 ${VAR}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
     ports:
       - "9201:9201"
     volumes:
@@ -252,6 +263,9 @@ services:
     environment:
       # 时区上海
       TZ: Asia/Shanghai
+      # 微服务占位符解析: Nacos 拉取的 datasource.yml/application-common.yml 含 ${VAR}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
     ports:
       - "9202:9202"
     volumes:
@@ -270,6 +284,9 @@ services:
       TZ: Asia/Shanghai
       SERVER_PORT: 9203
       SNAIL_PORT: 19203
+      # 微服务占位符解析: Nacos 拉取的 datasource.yml/application-common.yml 含 ${VAR}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
     ports:
       - "9203:9203"
     volumes:
@@ -286,6 +303,9 @@ services:
     environment:
       # 时区上海
       TZ: Asia/Shanghai
+      # 微服务占位符解析: Nacos 拉取的 datasource.yml/application-common.yml 含 ${VAR}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
     ports:
       - "9204:9204"
     volumes:
@@ -302,6 +322,9 @@ services:
     environment:
       # 时区上海
       TZ: Asia/Shanghai
+      # 微服务占位符解析: Nacos 拉取的 datasource.yml/application-common.yml 含 ${VAR}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
     ports:
       - "9205:9205"
     volumes:

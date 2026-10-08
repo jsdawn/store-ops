@@ -18,7 +18,7 @@ NAMESPACE="${NAMESPACE:-dev}"
 GROUP="${GROUP:-DEFAULT_GROUP}"
 
 echo ">>> 登录 Nacos http://${NACOS_SERVER} ..."
-TOKEN=$(curl -sf -X POST "http://${NACOS_SERVER}/v1/auth/login" \
+TOKEN=$(curl -sf -X POST "http://${NACOS_SERVER}/nacos/v1/auth/login" \
   -d "username=${NACOS_USERNAME}&password=${NACOS_PASSWORD}" \
   | sed -n 's/.*"accessToken":"\([^"]*\)".*/\1/p')
 if [ -z "${TOKEN}" ]; then
@@ -29,7 +29,7 @@ echo "    登录成功"
 
 echo ">>> 确保 namespace [${NAMESPACE}] 存在 ..."
 # 已存在时接口报错,不阻断
-curl -sf -X POST "http://${NACOS_SERVER}/v1/console/namespaces" \
+curl -sf -X POST "http://${NACOS_SERVER}/nacos/v1/console/namespaces" \
   -d "customNamespaceId=${NAMESPACE}&namespaceName=${NAMESPACE}&namespaceDesc=store-ops ${NAMESPACE}" \
   >/dev/null || echo "    (namespace 已存在,跳过创建)"
 
@@ -42,7 +42,7 @@ for f in *.yml *.properties; do
     *.yml)        TYPE=yaml ;;
     *.properties) TYPE=properties ;;
   esac
-  RES=$(curl -sf -X POST "http://${NACOS_SERVER}/v1/cs/configs" \
+  RES=$(curl -sf -X POST "http://${NACOS_SERVER}/nacos/v1/cs/configs" \
     --data-urlencode "dataId=${f}" \
     --data-urlencode "group=${GROUP}" \
     --data-urlencode "tenant=${NAMESPACE}" \

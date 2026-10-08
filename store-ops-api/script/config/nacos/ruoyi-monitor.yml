@@ -3,7 +3,8 @@ spring:
   security:
     user:
       name: ruoyi
-      password: 123456
+      # 变量化: 默认值与官方一致,部署 monitor 时在 .env 注入强密码
+      password: ${MONITOR_PASSWORD:123456}
   boot:
     admin:
       ui:

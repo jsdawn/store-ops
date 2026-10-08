@@ -20,8 +20,7 @@ script/docker/
 ├── .env.example                # 环境变量模板（复制为 .env 使用）
 ├── mysql/init/01-init-databases.sh   # 自建：dev 自动建库 + 导官方 SQL
 ├── nacos/
-│   ├── conf/cluster.conf       # 官方原样（单机自指 127.0.0.1:8848）
-│   └── override/application.properties  # 自建：覆盖镜像内 db 连接三键
+│   └── conf/cluster.conf       # 官方原样（单机自指 127.0.0.1:8848）
 ├── seata/override/application.yml       # 自建：覆盖镜像内 registry/config 三键
 └── redis/conf/redis.conf       # 官方原样（requirepass 由 compose 命令行参数覆盖）
 ```
@@ -80,12 +79,12 @@ docker compose -p store-ops-dev -f docker-compose.dev.yml up -d
 
 容器内互访走服务名（`mysql:3306` / `nacos:8848`），宿主 IDEA 微服务连 `localhost:3306|8848|6379|9000|8091`。
 
-**bridge 网络的两处挂载覆盖**（自建文件，键级合并、其余配置继承镜像内官方值）：
+**bridge 网络的配置覆盖**：
 
-- `nacos/override/application.properties` → `/ruoyi/nacos/config/application.properties`：db 地址改指服务名 `mysql`，密码接 `.env`
-- `seata/override/application.yml` → `/ruoyi/seata-server/config/application.yml`：registry/config 的 server-addr 改指 `nacos:8848`，凭据接 `.env`
+- **nacos**：环境变量直接注入（compose environment：`DB_URL_0` / `DB_USER_0` / `DB_PASSWORD_0`）——Spring 的 SystemEnvironmentPropertySource 会把 `db.url.0` 映射到 `DB_URL_0` 且优先级高于配置文件。⚠️ 不能用 override 挂载文件 + `${VAR}` 占位符：Nacos 自研 PropertyUtil 读的是文件原始值，**不解析占位符**（与 seata 自家配置同款坑）
+- **seata**：`seata/override/application.yml` → `/ruoyi/seata-server/config/application.yml`：registry/config 的 server-addr 改指 `nacos:8848`，凭据接 `.env`（seata 走 Spring 标准配置加载，`${VAR}` 占位符正常解析）
 
-> 原理：Spring Boot 外部配置 `file:./config/` 优先级高于 jar 内 application.properties/yml，且同名文件间按**键级合并**（后读优先），因此覆盖文件只需写差异键。
+> 原理：Spring Boot 外部配置 `file:./config/` 优先级高于 jar 内 application.properties/yml，且同名文件间按**键级合并**（后读优先），因此 seata 覆盖文件只需写差异键。
 
 **启动顺序**：nacos 与 seata-server 配置了 `restart: unless-stopped`，依赖服务（mysql/nacos）就绪前若启动失败会自动重试，一条命令全起即可。
 
@@ -110,7 +109,7 @@ docker compose -f docker-compose.prod.yml up -d mysql nacos redis minio
 docker compose -f docker-compose.prod.yml up -d
 ```
 
-prod 与官方编排的**唯一差异**：密钥走 `.env`；nacos/seata 挂载 override 覆盖文件（host 网络下地址值与官方烘焙值相同 `127.0.0.1`，仅密码改为接 `.env`，保证强密码与镜像内烘焙 `root/root` 不脱节）。扩展服务（elk/rocketmq/rabbitmq/kafka/skywalking/prometheus/grafana 等）按需参照官方 `docker-compose.yml` 扩展段添加。
+prod 与官方编排的**唯一差异**：密钥走 `.env`——nacos 的 db 三键与 seata 的 registry/config 凭据经 compose environment / override 挂载注入（host 网络下地址值与官方烘焙值相同 `127.0.0.1`，仅密码改为接 `.env`，保证强密码与镜像内烘焙 `root/root` 不脱节）。扩展服务（elk/rocketmq/rabbitmq/kafka/skywalking/prometheus/grafana 等）按需参照官方 `docker-compose.yml` 扩展段添加。
 
 ## 五、dev / prod / 官方差异对照表
 
@@ -120,7 +119,7 @@ prod 与官方编排的**唯一差异**：密钥走 `.env`；nacos/seata 挂载 
 | 服务面 | 全栈（14 服务） | 中间件五件套 | 全栈（14 服务） |
 | 挂载路径 | `/docker/...` 绝对路径 | 仓库相对路径 + 命名卷 | `/docker/...`（同官方） |
 | 密钥 | 烘焙明文（ruoyi123 等） | `.env` | `.env` |
-| nacos 配置库 | jar 内 `127.0.0.1:3306/root/root` | override → `mysql:3306` + `.env` 密码 | override → `127.0.0.1:3306` + `.env` 密码 |
+| nacos 配置库 | jar 内 `127.0.0.1:3306/root/root` | env 注入 `DB_URL_0` → `mysql:3306` + `.env` 密码 | env 注入 `DB_URL_0` → `127.0.0.1:3306` + `.env` 密码 |
 | seata registry | jar 内 `127.0.0.1:8848/nacos/nacos` | override → `nacos:8848` + `.env` 凭据 | override → `127.0.0.1:8848` + `.env` 凭据 |
 | redis 密码 | redis.conf 烘焙 `ruoyi123` | `--requirepass ${REDIS_PASSWORD}` | 同 dev |
 | seata 会话存储 | `store.mode=db`（需 ry-seata 库 + TC 四表） | `file`（`seata-file-store` 命名卷持久化） | `file`（`/docker/ruoyi-seata-server/file-store` 持久化） |

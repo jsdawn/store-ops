@@ -89,7 +89,8 @@ spring:
         metadata:
           # admin 监控账号密码
           username: ruoyi
-          userpassword: 123456
+          # 变量化: 经 ${MONITOR_PASSWORD:123456} 解析,强密码在 .env 注入(部署 monitor 时)
+          userpassword: ${MONITOR_PASSWORD:123456}
     bus:
       id: ${spring.application.name}
       base-packages: org.dromara.**.event
@@ -98,7 +99,8 @@ spring:
     host: localhost
     port: 5672
     username: ruoyi
-    password: ruoyi123
+    # 变量化: 默认值与官方一致,启用 rabbitmq 时在 .env 注入强密码
+    password: ${RABBITMQ_PASSWORD:ruoyi123}
 
   # redis通用配置 子服务可以自行配置进行覆盖
   data:
@@ -106,7 +108,8 @@ spring:
       host: localhost
       port: 6379
       # redis 密码必须配置
-      password: ruoyi123
+      # 变量化: 微服务运行期从环境变量解析(dev: source script/docker/.env; prod: compose 注入)
+      password: ${REDIS_PASSWORD}
       database: 0
       # 需要使用数字
       timeout: 10000

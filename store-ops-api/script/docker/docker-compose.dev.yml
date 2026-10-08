@@ -4,7 +4,7 @@
 # 与官方 docker-compose.yml 的关系:
 #   * 镜像版本/配置/端口与官方完全一致(官方母本见同目录 docker-compose.yml)
 #   * 服务面仅保留中间件五件套(gateway/auth/system 等微服务在宿主启动)
-#   * 差异点均已注释标明: bridge 网络 / 挂载覆盖 / 自动建库 / restart
+#   * 差异点均已注释标明: bridge 网络 / 环境变量与挂载覆盖 / 自动建库 / restart
 #
 # 用法:
 #   cd script/docker
@@ -29,8 +29,8 @@ services:
       - mysql-data:/var/lib/mysql/
       # 自建: 首次启动自动建库并导入官方 SQL(官方为手动导库,dev 便利性增强)
       - ./mysql/init:/docker-entrypoint-initdb.d/:ro
-      # 官方 SQL 只读挂载,供 init 脚本引用
-      - ../../sql:/sql/:ro
+      # 官方 SQL 只读挂载,供 init 脚本引用(相对 compose 文件目录 -> script/sql)
+      - ../sql:/sql/:ro
     command:
       # 将mysql8.0默认密码策略 修改为 原先 策略 (mysql8.0对其默认策略做了更改 会导致密码无法匹配)
       --default-authentication-plugin=mysql_native_password
@@ -45,10 +45,12 @@ services:
     environment:
       TZ: Asia/Shanghai
       JAVA_OPTS: "-Xms256m -Xmx512m"
-      # 覆盖镜像内烘焙的 127.0.0.1(bridge 网络下不通),经 override 文件注入
-      NACOS_DB_HOST: mysql
-      NACOS_DB_USER: root
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      # Spring 属性映射机制: OS 环境变量优先级高于配置文件,
+      # 直接以 DB_URL_0/DB_USER_0/DB_PASSWORD_0 覆盖 db.url.0 三键——
+      # 绕开 Nacos 自研 PropertyUtil 不解析 ${VAR} 占位符的坑(seata 同款教训)
+      DB_URL_0: "jdbc:mysql://mysql:3306/ry-config?characterEncoding=utf8&connectTimeout=1000&socketTimeout=3000&autoReconnect=true&useUnicode=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true"
+      DB_USER_0: root
+      DB_PASSWORD_0: ${MYSQL_ROOT_PASSWORD}
     ports:
       - "8848:8848"
       - "9848:9848"
@@ -58,8 +60,6 @@ services:
       - nacos-logs:/root/nacos/logs
       # 集群配置文件(官方原样,单机自指 127.0.0.1:8848)
       - ./nacos/conf/cluster.conf:/root/nacos/conf/cluster.conf
-      # 自建覆盖文件: 仅覆盖 db.url.0/db.user.0/db.password.0 三键
-      - ./nacos/override/application.properties:/ruoyi/nacos/config/application.properties
     # dev 便利: mysql 就绪前启动失败自动重试
     restart: unless-stopped
 
@@ -72,9 +72,10 @@ services:
     volumes:
       # 配置文件(官方原样,requirepass 由下方命令行参数覆盖)
       - ./redis/conf:/redis/config
-      # 数据文件
-      - redis-data:/redis/data/
-    # 命令行参数优先于配置文件: 密码统一走 .env(官方 redis.conf 烘焙 ruoyi123)
+      # 数据文件: 挂镜像自带 /data(redis 用户属主),规避 /redis/data 新建卷 root 属主
+      # 导致 redis 用户创建 AOF 目录 Permission denied 的问题
+      - redis-data:/data
+    # 命令行参数优先于配置文件: 密码统一走 .env(dir 已在 conf 中适配为 /data)
     command: "redis-server /redis/config/redis.conf --requirepass ${REDIS_PASSWORD}"
     privileged: true
 
