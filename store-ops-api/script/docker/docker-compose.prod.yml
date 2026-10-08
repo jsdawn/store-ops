@@ -16,6 +16,8 @@
 #   # 待 nacos 就绪后导入配置(见 README),再启动其余服务:
 #   docker compose -f docker-compose.prod.yml up -d
 # =====================================================================
+name: store-ops-prod
+
 services:
   mysql:
     image: mysql:8.0.42

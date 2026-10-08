@@ -9,9 +9,12 @@
 # 用法:
 #   cd script/docker
 #   cp .env.example .env          # 修改 SEATA_IP 为本机局域网 IP
-#   docker compose -p store-ops-dev -f docker-compose.dev.yml up -d
+#   docker compose -f docker-compose.dev.yml up -d
+#   docker image prune -f                                   # 清理换下来的旧层
 # 停止:  ... down        停止并清数据: ... down -v
 # =====================================================================
+name: store-ops-dev
+
 services:
   mysql:
     image: mysql:8.0.42
