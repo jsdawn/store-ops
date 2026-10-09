@@ -28,8 +28,22 @@
 | 逻辑删除 | `del_flag char(1)` `@TableLogic` | 跟框架约定；本期门店无删除入口，字段预留 |
 | 状态取值 | `status char(1)`：`0` 启用 / `1` 停用 | 与 sys_dept 保持一致 |
 | 金额/积分 | `decimal(2)`，以「分」为最小单位 | 本模块无金额字段，全局沿用 |
+| 接口分端 | controller 层分端：管理台 `controller/`（URL `/store/**`），小程序 `controller/mp/`（URL `/mp/store/**`，类名 `Mp` 前缀） | 网关白名单 `/mp/**` 按 URL 前缀一刀切放行；service/domain/mapper 两端完全共享不复制；mp controller 保持薄（参数转换 + 调共享 service + 归属校验，业务逻辑一律下沉）；管理台走 `@SaCheckPermission` 角色权限，mp 端为顾客身份（loginType=mp，无角色体系），按登录态校验 |
 
 > 顾客端 `/mp/**` 接口不走框架数据权限，手动校验 store_id/tenant_id 归属（PRD 6.6 节），与本约定不冲突。
+>
+> 目录形态（每域照此复制）：
+>
+> ```
+> org.dromara.business.store/
+> ├── controller/
+> │   ├── StoreController.java        # 管理台 → /store/**
+> │   └── mp/
+> │       └── MpStoreController.java  # 小程序 → /mp/store/**
+> ├── service/  ├── mapper/  └── domain/   # 两端共享
+> ```
+>
+> mp 端响应字段按需裁剪（不吐管理台 Vo 全量字段，必要时 mp 专属精简 Vo）。P1 动工实测项：`/mp/**` 白名单路径上租户插件仍生效（拦截在 mapper 层），顾客登录前的匿名接口需确认不查库或走安全查询路径。
 
 ## 3. 数据库设计
 
@@ -96,9 +110,11 @@ CREATE TABLE `biz_store` (
 - 网关路由：`/store/** → lb://ops-business`，URL 前缀仍按域划分，无需白名单（管理台接口，需登录）
 - 开发期固定起 gateway + auth + system + ops-business 四个服务，后续里程碑不再新增服务进程
 
-### 4.2 管理台 REST 接口
+### 4.2 管理台 REST 接口（pc 端）
 
 统一返回 `R<T>`，登录端 `pc`，权限注解 `@SaCheckPermission`，写操作带 `@Log` 操作日志与 `@RepeatSubmit` 防重。
+
+> mp 端接口（`/mp/store/**`）目录与鉴权约定见第 2 节「接口分端」；接口清单在 P1 小程序 API 开发步骤按需补充。
 
 | # | 方法 | 路径 | 权限 | 说明 |
 |---|---|---|---|---|
