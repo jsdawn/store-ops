@@ -37,9 +37,9 @@
 > ```
 > org.dromara.business.store/
 > ├── controller/
-> │   ├── StoreController.java        # 管理台 → /store/**
+> │   ├── BizStoreController.java        # 管理台 → /store/**
 > │   └── mp/
-> │       └── MpStoreController.java  # 小程序 → /mp/store/**
+> │       └── MpBizStoreController.java  # 小程序 → /mp/store/**
 > ├── service/  ├── mapper/  └── domain/   # 两端共享
 > ```
 >
@@ -99,14 +99,14 @@ CREATE TABLE `biz_store` (
 
 ### 3.4 实体映射
 
-`Store extends TenantEntity`，`@TableName("biz_store")`，`@TableId(store_id)` + `@TableLogic(del_flag)`，与 `SysDept` 同款写法；Bo/Vo 按 `domain/bo/StoreBo`、`domain/vo/StoreVo` 分包。
+`BizStore extends TenantEntity`，`@TableName("biz_store")`，`@TableId(store_id)` + `@TableLogic(del_flag)`，与 `SysDept` 同款写法；Bo/Vo 按 `domain/bo/BizStoreBo`、`domain/vo/BizStoreVo` 分包。
 
 ## 4. 接口设计
 
 ### 4.1 模块与服务
 
 - Maven 模块：`ruoyi-modules/ops-business`（业务聚合模块，2026-10-09 定案，域按包划分），store 域包名 `org.dromara.business.store`（跟随框架包结构，便于复用 common 能力）
-- Nacos 服务名：`ops-business`，服务端口 `9206`（框架模块 9201~9205 顺延），配置 dataId `ops-business.yaml`（端口、数据源等，全部业务域共用一份）
+- Nacos 服务名：`ops-business`，服务端口 `9206`（框架模块 9201~9205 顺延），配置 dataId `ops-business.yml`（框架惯例 `${spring.application.name}.yml`；端口、数据源等，全部业务域共用一份）
 - 网关路由：`/store/** → lb://ops-business`，URL 前缀仍按域划分，无需白名单（管理台接口，需登录）
 - 开发期固定起 gateway + auth + system + ops-business 四个服务，后续里程碑不再新增服务进程
 
@@ -131,7 +131,7 @@ CREATE TABLE `biz_store` (
 
 **关键接口详述**
 
-- `POST /store` 请求体（StoreBo）：
+- `POST /store` 请求体（BizStoreBo）：
 
 | 字段 | 类型 | 必填 | 校验 |
 |---|---|---|---|
@@ -142,24 +142,24 @@ CREATE TABLE `biz_store` (
 | remark | string(≤100) | 否 | |
 
 - `GET /store/unbound-depts`：Dubbo 调 `RemoteDeptService.selectDeptsByList()` 取本租户部门 → 本地查 biz_store 表已占用 dept_id 集合 → 差集返回 `[{deptId, deptName}]`。仅返回租户总部下一层的「门店部门」形态由前端树形下拉自然表达，接口不做层级过滤。
-- `GET /store/list` 返回 StoreVo 额外带 `deptName`（join 或查后补齐），供列表「绑定部门」列展示。
+- `GET /store/list` 返回 BizStoreVo 额外带 `deptName`（join 或查后补齐），供列表「绑定部门」列展示。
 
 ### 4.3 域间接口（模块内本地调用）
 
 业务合并为单模块后，member/order 等域消费门店能力是**同模块本地方法调用**，无需 Dubbo、无需 Remote 接口与 ruoyi-api-ops 工程（若将来按域拆模块再引入）：
 
 ```java
-// store 域对外门面：org.dromara.business.store.service.IStoreService
+// store 域对外门面：org.dromara.business.store.service.IBizStoreService
 // 跨域消费只允许走 service 接口，禁止跨包注入 Mapper（守拆分演进纪律）
-public interface IStoreService {
+public interface IBizStoreService {
     /** 按 ID 查门店（含 status/tenantId），供 member/order 域校验门店归属与状态 */
-    StoreVo queryStoreById(Long storeId);
+    BizStoreVo queryStoreById(Long storeId);
     /** 按部门 ID 查门店（员工登录后定位所属门店） */
-    StoreVo queryStoreByDeptId(Long deptId);
+    BizStoreVo queryStoreByDeptId(Long deptId);
 }
 ```
 
-消费方（后续域包）：顾客建档校验门店启用、收银校验门店归属、员工工作台定位当前店——直接注入 `IStoreService`，无网络开销，跨域联动走本地事务。
+消费方（后续域包）：顾客建档校验门店启用、收银校验门店归属、员工工作台定位当前店——直接注入 `IBizStoreService`，无网络开销，跨域联动走本地事务。
 
 跨模块调用仅剩 ruoyi-system（部门/用户）：Dubbo 走框架 `ruoyi-api-system` 的 `RemoteDeptService`，需补一个 `selectDeptById(Long deptId)`（现有接口无单查方法，框架侧小改）。
 
@@ -193,7 +193,7 @@ PRD 5.0 节原允许「换绑时选未占用部门」，但全局约定业务表
 
 ### 5.5 停用联动
 
-停用**不写任何联动数据**，消费方实时校验（域内调 `IStoreService.queryStoreById` 读 status）：
+停用**不写任何联动数据**，消费方实时校验（域内调 `IBizStoreService.queryStoreById` 读 status）：
 
 | 消费方 | 行为 |
 |---|---|
