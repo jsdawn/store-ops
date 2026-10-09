@@ -1,10 +1,11 @@
 # store-ops 多租户门店经营系统 · 架构设计方案
 
-> 版本：v1.3（2026-09-21 对齐 PRD v1.0）
+> 版本：v1.4（2026-10-09：业务表统一 biz_ 前缀）
 > 状态：设计完成，待搭建骨架
 > v1.1 变更：补充小程序 appid 模式、微信支付通道、顾客身份鉴权三大遗漏；修正 member 唯一约束、预约时段模型、订单幂等、开发环境最小化
 > v1.2 变更：预约模块与真实微信支付推迟到上线后迭代；首版 MVP 收敛为 会员 + 记账收银 + 积分 + 报表
 > v1.3 变更：会员唯一标识改为门店 + 手机号（open_id 降级为登录凭证）；顾客端支持手动切换已注册门店；核心表清单补充余额/充值/优惠券四表，member 增加 balance，point_balance 改 decimal，order 增加优惠券字段（对齐 PRD v1.0）
+> v1.4 变更：业务表统一 `biz_` 前缀（与框架 sys_ 表区分、解决 order 保留字），核心表清单同步更名
 
 ---
 
@@ -95,7 +96,8 @@ tenant 租户（品牌方 / 单店商家）        ← tenant_id 框架自动隔
 
 ### 4.2 表设计约定
 
-- 所有业务表同时带 `tenant_id`（框架注入）+ `store_id`（业务归属）
+- 业务表统一 `biz_` 前缀（biz_store / biz_member / biz_order …），与框架 `sys_` 表一眼区分，规避 `order` 等 MySQL 保留字
+- 所有业务表同时带 `tenant_id`（框架注入）+ `store_id`（业务归属）+ `dept_id`（冗余，供框架数据权限过滤）
 - **会员挂门店级**（member.store_id）：各店独立会员池，A 店会员在 B 店是陌生人
 - **预留升级路径**：member 表存 `open_id`（微信）、`mobile`，将来做连锁跨店识别（"顾客主体 + 门店会员关系"模型）时零改表升级
 - 积分采用**余额 + 流水**模式：余额在门店积分账户上，`point_log` 每笔记 store_id + biz_order_id
@@ -104,18 +106,18 @@ tenant 租户（品牌方 / 单店商家）        ← tenant_id 框架自动隔
 
 | 表 | 归属 | 关键字段 |
 |---|---|---|
-| store | 租户 | name, address, status, dept_id |
-| member | 门店 | store_id, mobile(必填, 唯一键), open_id, level_id, balance(decimal), point_balance(decimal) |
-| recharge_log | 门店 | member_id, store_id, amount(本金), gift_amount(赠送), pay_type, operator_id |
-| balance_log | 门店 | member_id, store_id, change, biz_order_id, type(充值/消费/冲正) |
-| point_log | 门店 | member_id, store_id, change, biz_order_id, type |
-| coupon_template | 门店 | store_id, name, type(满减/折扣), threshold, value, discount, cap, cost_point, total, per_limit, valid_days, status |
-| coupon | 门店 | template_id, member_id, store_id, status(未使用/已使用/已过期), expire_at, used_order_id |
-| order | 门店 | store_id, member_id, amount(总额), coupon_id, discount_amount(优惠额), pay_amount(应付), pay_type(余额/微信/支付宝/现金), status |
-| order_item | 订单 | order_id, sku, qty, price |
-| booking | 门店 | store_id, member_id, service_id, staff_id, time, status |
-| service | 门店 | store_id, name, price, duration |
-| booking_slot | 门店 | store_id, date, time_range, capacity, used |
+| biz_store | 租户 | store_name, address, status, dept_id |
+| biz_member | 门店 | store_id, mobile(必填, 唯一键), open_id, level_id, balance(decimal), point_balance(decimal) |
+| biz_recharge_log | 门店 | member_id, store_id, amount(本金), gift_amount(赠送), pay_type, operator_id |
+| biz_balance_log | 门店 | member_id, store_id, change, biz_order_id, type(充值/消费/冲正) |
+| biz_point_log | 门店 | member_id, store_id, change, biz_order_id, type |
+| biz_coupon_template | 门店 | store_id, name, type(满减/折扣), threshold, value, discount, cap, cost_point, total, per_limit, valid_days, status |
+| biz_coupon | 门店 | template_id, member_id, store_id, status(未使用/已使用/已过期), expire_at, used_order_id |
+| biz_order | 门店 | store_id, member_id, amount(总额), coupon_id, discount_amount(优惠额), pay_amount(应付), pay_type(余额/微信/支付宝/现金), status |
+| biz_order_item | 订单 | order_id, sku, qty, price |
+| biz_booking | 门店 | store_id, member_id, service_id, staff_id, time, status |
+| biz_service | 门店 | store_id, name, price, duration |
+| biz_booking_slot | 门店 | store_id, date, time_range, capacity, used |
 
 **金额与积分精度**：金额（balance、amount 等）与积分（point_balance、cost_point 等）统一以「分」为最小单位存储（decimal，两位小数），PRD 定稿要求积分不取整、等额转化。
 
