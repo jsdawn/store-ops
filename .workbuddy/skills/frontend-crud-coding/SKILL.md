@@ -130,7 +130,7 @@ workflow 目录优先参考 `src/views/workflow/*`。流程定义、流程实例
 - `AxiosPromise` 是否从 `axios` 引入（当前版本没有 `@/utils/api-types`）。
 - 列表接口是否返回 `AxiosPromise<XxxVO[]>`，页面是否取 `res.rows` / `res.total`（当前版本没有 `PageResult` 类型）。
 - API `params` 和 `data` 是否与后端方法一致。
-- 日期范围是否通过页面内 `dateRange` ref + `addDateRange` 等现有方式处理。
+- 日期范围是否通过页面内 `dateRange` ref + `proxy?.addDateRange` 处理。
 - 列表 loading、多选、弹窗是否按 5.x 标准 ref / `reactive<DialogOption>` 方式维护。
 - 权限指令是否保持同文件一致，默认使用 `v-hasPermi`。
 - 导出是否使用 `proxy?.download('<module>/<business>/export', { ...queryParams.value }, '<name>_<timestamp>.xlsx')`。

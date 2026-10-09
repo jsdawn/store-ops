@@ -17,10 +17,11 @@ agent_created: true
 - 新增标准 CRUD 模块。
 - 根据新表结构补齐 entity、bo、vo、mapper、service、controller。
 - 修改已有模块的查询、校验、导入导出、数据权限、事务逻辑。
+- 涉及多租户隔离（`tenant_id`）、门店级数据范围（`store_id`）、`TenantHelper` 跨租户操作的场景。
 - 修改 `ruoyi-common` 公共能力，例如 mybatis、translation、json、excel、oss、redis、web、satoken、tenant 配置。
 - 修改 Cloud 专属能力，例如 `ruoyi-api` 远程契约、Dubbo provider/consumer、Gateway/Auth、Nacos 配置约定、Seata 分布式事务、服务间数据权限透传。
 - 补充或修正 JavaDoc 注释，尤其是公共 API、接口、BO/VO/Entity 字段、Mapper 默认方法、Service/Controller 方法。
-- 在 system、job、resource、workflow、gen 等模块内按现有约定扩展业务代码。
+- 在 system、job、resource、workflow、gen、demo 等模块内按现有约定扩展业务代码。
 - 为后端新增接口同步补前端 `api/types/index.vue` 骨架。
 
 ## 不适用场景
@@ -28,7 +29,7 @@ agent_created: true
 下面这些任务不要机械套用本 skill 的 CRUD 规则：
 
 - 基础框架升级、Spring Boot 主版本迁移。
-- 与当前分层明显不同的实验性模块（可参考 `ruoyi-example`）。
+- 与当前分层明显不同的实验性模块（可参考 `ruoyi-example` 下的其他示例工程）。
 - 第三方中间件深度接入、基础设施改造。
 - 完全脱离 generator 体系的独立子系统。
 
@@ -166,6 +167,8 @@ Vue 3、TypeScript API 文件、生成式列表页、表单状态、字典和日
 - 权限标识遵循 `${module}:${business}:${action}`。
 - Mapper 继承 `BaseMapperPlus<Entity, Vo>`。
 - 手写 Service 注入 Mapper 时，生成器风格和 system 模块均命名为 `baseMapper`；只有同模块出现第二个 Mapper 时才用业务短名区分。
+- 业务实体是否继承 `TenantEntity` 取决于是否需要租户隔离；租户 SQL 由 `PlusTenantLineHandler` 自动追加，不要手写 `tenant_id` 条件，也不要把业务表加进 `tenant.excludes`。
+- 跨租户系统操作用 `TenantHelper.ignore(...)`，指定租户执行用 `TenantHelper.dynamic(...)`。
 - 分页返回 `TableDataInfo<Vo>`，用 `TableDataInfo.build(page)` 构造；list 接口直接返回 `TableDataInfo`，不包 `R`。
 - 查询条件集中放在私有 `buildQueryWrapper(bo)` 方法，使用 `Wrappers.lambdaQuery()` 或 `new LambdaQueryWrapper<>()`，条件谓词手写在链上；不要引入本仓库不存在的 QueryBuilder / 链式 IfPresent 工具。
 - 翻译能力实现 `TranslationInterface<T>` + `@TranslationType`，实现 `translation(Object key, String other)`；当前版本没有批量翻译接口，注意控制 N+1 查询。

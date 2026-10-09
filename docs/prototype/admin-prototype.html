@@ -2,12 +2,13 @@
 <html lang="zh-CN" data-page-node-id="06SYOZ7HtVhnqm3Dw27rLe" data-dm-ref="4"><head data-page-node-id="LWfao7GmUehO3aReyUiwBK">
 <meta charset="UTF-8" data-page-node-id="yyzAbAYrk6W84VVsrnOFyu">
 <meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="HEQBC68i6A4Q7mMYwHwowL">
-<title>store-ops 管理台原型（低保真）· 仅本期自研 3 页</title>
+<title>store-ops 管理台原型（低保真）· 本期自研页面</title>
 <!--
   低保真交互原型：管理台（RuoYi-Cloud-Plus-UI）本期自研页面。
-  设计意图：贴近 Element Plus 组件形态（蓝灰基调、表格+表单），验证三类页面的字段与交互；
+  设计意图：贴近 Element Plus 组件形态（蓝灰基调、表格+表单），验证页面的字段与交互；
   框架原生页面（租户/用户/角色/菜单/部门/登录）不画原型，开发时直接用框架 CRUD。
-  本期自研仅 3 页：① 优惠券配置（类型联动表单）② 订单列表（三段金额+券信息）③ 充值流水+冲正。
+  本期自研页面：① 门店管理（自研 ops-store，部门先建后关联）② 优惠券配置（类型联动表单）
+  ③ 订单列表（三段金额+券信息）④ 充值流水+冲正 ⑤ 会员查询（轻量字段验证）。
 -->
 <style>
 :root{
@@ -108,12 +109,12 @@ tr:hover td{background:#fafbfc}
     <div class="logo" data-page-node-id="EtGtNZF6PqQqibMIRhj3ug">store-ops 管理台</div>
     <div class="menu" data-page-node-id="v0ZZg8eov45WsoNFW9ncyn">
       <div class="m-group" data-page-node-id="1SHDJ8qKGYQKSOzIM7Z9bE">门店经营（本期自研）</div>
+      <div class="m-item" onclick="showPage('store',this)">门店管理</div>
       <div class="m-item on" onclick="showPage('order',this)" data-page-node-id="mF8hs2CVKrb8IippXm7caL">订单管理</div>
       <div class="m-item" onclick="showPage('coupon',this)" data-page-node-id="5DLqMvYa1aeFrCzI48gnEf">优惠券管理</div>
       <div class="m-item" onclick="showPage('recharge',this)" data-page-node-id="ozBDqjZkzLD6ctbMb0N4OI">充值流水与冲正</div>
       <div class="m-item" onclick="showPage('member',this)" data-page-node-id="40O0yOTcPaWDalotPT38Vf">会员管理</div>
       <div class="m-group" data-page-node-id="zjJjSVD8f8IzEvxStN6HHC">组织与权限（框架自带 · 不出原型）</div>
-      <div class="m-item disabled" data-page-node-id="ui3IHYBV8RaIS8p1S0qnDj">门店管理<span class="fw" data-page-node-id="ZyNFZzboEM4W29AQxsDU3q">P1 框架CRUD</span></div>
       <div class="m-item disabled" data-page-node-id="FnsleHM79jhG0dTd94ehrA">员工管理<span class="fw" data-page-node-id="t1lTgSo6Eyf2m71WAbCTw0">框架</span></div>
       <div class="m-item disabled" data-page-node-id="BYLLgpvHiLAcPSEgn0KVpp">角色权限<span class="fw" data-page-node-id="khJ1e6zAEShqmeVpSRScNq">框架</span></div>
       <div class="m-item disabled" data-page-node-id="2U38SZlaTIAjGmLEOi4FfB">租户管理<span class="fw" data-page-node-id="KgExxlxhcgLt7OFbvwZiDZ">平台超管·框架</span></div>
@@ -130,6 +131,54 @@ tr:hover td{background:#fafbfc}
       <span class="u" data-page-node-id="p60JDJi7r5rDhLS4U1FGTG">租户管理员：轻语美发 · 数据范围 = 本租户全部门店</span>
     </div>
     <div class="content" data-page-node-id="gsZASfAH1Fuj49MzPD2VVh">
+
+      <!-- ============ 门店管理（自研 ops-store） ============ -->
+      <div class="page" id="pg-store">
+        <div class="panel">
+          <div class="toolbar">
+            <select><option>全部状态</option><option>启用</option><option>停用</option></select>
+            <input type="text" placeholder="门店名称 / 地址">
+            <button class="btn btn-p">查询</button>
+            <button class="btn btn-o" onclick="openStoreDrawer()">＋ 新建门店</button>
+          </div>
+          <table>
+            <thead><tr>
+              <th>门店名称</th><th>绑定部门</th><th>地址</th><th>小程序码</th><th>状态</th><th>创建时间</th><th>操作</th>
+            </tr></thead>
+            <tbody>
+              <tr>
+                <td><b>佛山禅城店</b></td>
+                <td><span class="tag blue">轻语美发 / 佛山禅城店</span></td>
+                <td>佛山市禅城区季华五路 12 号</td>
+                <td><button class="link" onclick="toastMsg('小程序码 scene=store_id，顾客扫码进店建档（PRD 5.1.1）')">查看</button></td>
+                <td><span class="tag ok">启用</span></td>
+                <td>09-01</td>
+                <td><button class="link" onclick="openStoreDrawer()">编辑</button><button class="link d" onclick="openStoreStop(this)">停用</button></td>
+              </tr>
+              <tr>
+                <td><b>广州天河店</b></td>
+                <td><span class="tag blue">轻语美发 / 广州天河店</span></td>
+                <td>广州市天河区体育西路 88 号</td>
+                <td><button class="link" onclick="toastMsg('小程序码 scene=store_id，顾客扫码进店建档（PRD 5.1.1）')">查看</button></td>
+                <td><span class="tag ok">启用</span></td>
+                <td>09-01</td>
+                <td><button class="link" onclick="openStoreDrawer()">编辑</button><button class="link d" onclick="openStoreStop(this)">停用</button></td>
+              </tr>
+              <tr>
+                <td><b>深圳南山店</b></td>
+                <td><span class="tag blue">轻语美发 / 深圳南山店</span></td>
+                <td>深圳市南山区海德二道 26 号</td>
+                <td><span style="color:var(--muted)">已停用</span></td>
+                <td><span class="tag gray">停用</span></td>
+                <td>09-02</td>
+                <td><button class="link" onclick="openStoreDrawer()">编辑</button><button class="link" style="color:var(--ok)" onclick="toastMsg('已启用：小程序码立即可扫，顾客可建档，工作台恢复收银')">启用</button></td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="pager">共 3 条<span>‹</span><span class="on">1</span><span>›</span></div>
+        </div>
+        <div class="notice">绑定规则（PRD 5.0，已定稿）：先在框架「部门管理」建门店部门，再在此关联——<b>1 部门 ↔ 1 门店</b>，表单仅可选未绑定门店的部门；店长不在本页指定，走员工挂部门 + 角色配置。本期不提供删除门店，仅停用（会员/订单/流水保留，重新启用后恢复）。</div>
+      </div>
 
       <!-- ============ 订单管理 ============ -->
       <div class="page on" id="pg-order" data-page-node-id="QVJakFXqEXBPGF9gBLnswd">
@@ -381,8 +430,63 @@ tr:hover td{background:#fafbfc}
         <div class="notice" data-page-node-id="qfI4cKZmoRGc1ewgVfGAOb">唯一约束 (tenant_id, store_id, mobile)：同店手机号重复时提示跳转已有档案；同一手机号在 A、B 两店是两个独立会员（PRD 5.1.1）。</div>
       </div>
 
+      <!-- 新建/编辑门店 抽屉 -->
+      <div class="drawer-mask" id="storeMask" onclick="closeStoreDrawer()"></div>
+      <div class="drawer" id="storeDrawer">
+        <div class="d-head"><span>新建门店 · 轻语美发（租户管理员）</span><button class="link" onclick="closeStoreDrawer()">✕</button></div>
+        <div class="d-body">
+          <div class="field">
+            <label>门店名称 <span class="req">*</span></label>
+            <input type="text" value="顺德北滘店" maxlength="20">
+            <div class="note">≤ 20 字，租户内不重复</div>
+          </div>
+          <div class="field">
+            <label>所属部门 <span class="req">*</span>（仅可选未绑定门店的部门）</label>
+            <select><option>轻语美发 / 顺德北滘店（未绑定）</option></select>
+            <div class="note">先建部门再关联：部门在框架「部门管理」维护，下拉为空时请先去部门管理新建门店部门；1 部门只能绑定 1 家门店。</div>
+          </div>
+          <div class="field">
+            <label>门店地址（选填）</label>
+            <input type="text" value="佛山市顺德区北滘镇美的全球创新中心" maxlength="50">
+            <div class="note">≤ 50 字</div>
+          </div>
+          <div class="field">
+            <label>状态</label>
+            <div class="seg"><button class="on">启用</button><button>停用</button></div>
+            <div class="note">启用后小程序码立即可扫、顾客可进店建档</div>
+          </div>
+          <div class="field">
+            <label>备注（选填）</label>
+            <input type="text" maxlength="100" placeholder="≤ 100 字">
+          </div>
+        </div>
+        <div class="d-foot">
+          <button class="btn btn-o" onclick="closeStoreDrawer()">取消</button>
+          <button class="btn btn-p" onclick="closeStoreDrawer();toastMsg('已保存：门店已绑定部门。店长请到「员工管理」把用户挂到该部门并配店长角色')">保存</button>
+        </div>
+      </div>
+
+      <!-- 停用门店 弹窗 -->
+      <div class="modal-mask" id="storeStopMask">
+        <div class="modal">
+          <h3>停用门店确认</h3>
+          <table style="margin-bottom:12px">
+            <tbody>
+              <tr><td style="border:none;color:var(--muted)">门店</td><td style="border:none" id="storeStopRow">—</td></tr>
+              <tr><td style="border:none;color:var(--muted)">顾客端</td><td style="border:none">扫码提示「门店暂停营业」，不可建档、不可兑该店券</td></tr>
+              <tr><td style="border:none;color:var(--muted)">商家端</td><td style="border:none">该店工作台收银 / 充值 / 核销不可用</td></tr>
+              <tr><td style="border:none;color:var(--muted)">数据</td><td style="border:none">会员 / 订单 / 流水保留，重新启用后恢复；本期不提供删除</td></tr>
+            </tbody>
+          </table>
+          <div class="d-foot" style="border:none;padding:0">
+            <button class="btn btn-o" onclick="closeStoreStop()">取消</button>
+            <button class="btn btn-d" onclick="closeStoreStop();toastMsg('已停用：该店小程序码与工作台均已停用，历史数据保留')">确认停用</button>
+          </div>
+        </div>
+      </div>
+
       <div class="toast" id="gtoast" style="position:fixed;left:50%;top:60px;transform:translateX(-50%);background:rgba(0,0,0,.75);color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;display:none;z-index:99" data-page-node-id="7t7AQUvkETICsMDbqzlQym"></div>
-      <p class="doc-note" data-page-node-id="btpnfjqj82JBHjCL2znSzd">管理台本期自研页面共 4 个（订单 / 优惠券 / 充值冲正 / 会员），会员页为轻量查询页用于字段验证。门店、员工、角色、租户、登录等均为 RuoYi-Cloud-Plus 框架原生页面，不出原型。</p>
+      <p class="doc-note" data-page-node-id="btpnfjqj82JBHjCL2znSzd">管理台本期自研页面共 5 个（门店 / 订单 / 优惠券 / 充值冲正 / 会员），门店管理为自研 ops-store 模块（先建部门再关联，1 部门 1 门店），会员页为轻量查询页用于字段验证。租户、员工、角色、部门、登录等均为 RuoYi-Cloud-Plus 框架原生页面，不出原型。</p>
     </div>
   </div>
 </div>
@@ -412,6 +516,15 @@ function openReversal(btn){
   document.getElementById('reversalMask').classList.add('on');
 }
 function closeReversal(){document.getElementById('reversalMask').classList.remove('on');}
+/* 门店管理 */
+function openStoreDrawer(){document.getElementById('storeDrawer').classList.add('on');document.getElementById('storeMask').classList.add('on');}
+function closeStoreDrawer(){document.getElementById('storeDrawer').classList.remove('on');document.getElementById('storeMask').classList.remove('on');}
+function openStoreStop(btn){
+  const tr=btn.closest('tr');
+  document.getElementById('storeStopRow').textContent=tr.cells[0].textContent.trim();
+  document.getElementById('storeStopMask').classList.add('on');
+}
+function closeStoreStop(){document.getElementById('storeStopMask').classList.remove('on');}
 </script>
 
 

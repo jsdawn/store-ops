@@ -3,6 +3,7 @@
 ## 优先参考的代码来源
 
 - `ruoyi-modules/ruoyi-gen/src/main/resources/vm/java/*.vm`
+- `ruoyi-example/ruoyi-demo/...`（标准 CRUD、树表、Excel 导入导出示例）
 - `ruoyi-modules/ruoyi-system/...`
 - `ruoyi-modules/ruoyi-workflow/...`
 - `ruoyi-modules/ruoyi-job/...`
@@ -10,9 +11,10 @@
 - `ruoyi-api/...`
 - `ruoyi-auth/...`
 - `ruoyi-gateway/...`
+- `ruoyi-visual/ruoyi-monitor/...`（监控服务，属于部署单元，不是 `ruoyi-modules`）
 - `ruoyi-common/ruoyi-common-mybatis/...`
 
-注意：当前仓库没有独立的 `ruoyi-demo` 模块；标准 CRUD 参考以 generator 模板和 `ruoyi-system` 中简单模块（如岗位 SysPost）为准。
+注意：demo 模块在 5.x 位于 `ruoyi-example/ruoyi-demo`，不在 `ruoyi-modules` 下。写标准 CRUD 时它是最贴近的完整范例（`TestDemo` 单表、`TestTree` 树表、`ExportExcelServiceImpl` 导入导出），优先读它而不是只读 gen 模板。
 
 ## 决策顺序
 
@@ -39,19 +41,20 @@
 
 ## Entity 规则
 
-- 除非所在模块明显另有约定，否则实体类继承 `org.dromara.common.mybatis.core.domain.BaseEntity`。
+- 业务实体需要租户隔离时继承 `org.dromara.common.tenant.core.TenantEntity`；不需要租户字段的实体继承 `org.dromara.common.mybatis.core.domain.BaseEntity`。两者都带审计字段和 `params`。
 - 使用 Lombok `@Data` 和 `@EqualsAndHashCode(callSuper = true)`。
 - 使用 `@TableName("table_name")`。
 - 主键使用 `@TableId`。
 - 存在 `delFlag` 时保留 `@TableLogic`，存在乐观锁字段时保留 `@Version`。
+- `createBy` / `updateBy` / `createDept` / `createTime` / `updateTime` 由 `InjectionMetaObjectHandler` 自动填充，业务代码不要手动赋值。
 - 如果附近实体已经使用 `@OrderBy` 等额外注解，应继续保持。
 
 ## BO 规则
 
-- 继承 `org.dromara.common.mybatis.core.domain.BaseEntity`（`params`、创建/更新审计字段由父类提供）。
+- 继承 `org.dromara.common.mybatis.core.domain.BaseEntity`（`params`、创建/更新审计字段由父类提供），并加 `@EqualsAndHashCode(callSuper = true)`。
 - 添加 `@AutoMapper(target = Entity.class, reverseConvertGenerate = false)`（来自 `io.github.linpeilie.annotations`）。
 - 请求专用字段、查询专用字段放在 BO 中。
-- 在生成器或附近代码已有分组校验时，继续使用：`AddGroup`、`EditGroup`（校验注解上写 `groups = {AddGroup.class}` 形式）。
+- 分组校验写法以模板为准：`@NotBlank(message = "xxx不能为空", groups = { AddGroup.class })`；新增与修改都必填的字段写 `groups = { AddGroup.class, EditGroup.class }`。
 - `@Xss`、`@Email`、`@Size`、`@NotBlank`、`@NotNull` 要按真实业务语义添加，不要一股脑全套上。
 - 查询存在日期范围时依赖 `BaseEntity.params`，不需要重复声明。
 
@@ -185,9 +188,26 @@
 ## common-mybatis 规则
 
 - 公共能力以 `BaseMapperPlus<T, V>`、`PageQuery`、`TableDataInfo`、`BaseEntity` 为主。
+- `BaseEntity` 实现 `Serializable`，字段带 `@TableField(fill = FieldFill.INSERT / INSERT_UPDATE)`；`params` 字段是 `@TableField(exist = false)` 的 HashMap，不落库。
+- 审计字段由 `InjectionMetaObjectHandler` 自动填充（`createBy`、`updateBy`、`createDept`、`createTime`、`updateTime`）；无登录用户时 `createBy` 默认填 `-1L`。业务代码不要手动 set 这些字段。
 - 数据权限注解使用 `@DataPermission({ @DataColumn(key = "deptName", value = "dept_id"), @DataColumn(key = "userName", value = "create_by") })`，注解在 `org.dromara.common.mybatis.annotation` 包。
+- 数据权限的实际 SQL 由 `PlusDataPermissionHandler` 通过 SpEL 拼装，数据范围枚举在 `org.dromara.common.mybatis.enums.DataScopeType`（ALL / CUSTOM / DEPT / DEPT_AND_CHILD / OWN 等），自定义数据范围可实现 `SysDataScopeService` 扩展，不要绕过注解直接拼 dept 条件。
+- 需要忽略数据权限的最小范围用 `DataPermissionHelper.ignore(...)` 包裹。
 - Dubbo 调用链上的数据权限透传由 `common-mybatis` 里的 `DubboDataPermissionFilter` 承担，不要随意绕过。
 - 新增派生查询方法时遵循 MP 原生命名，不引入第三方增强包。
+
+## 多租户规则（本项目核心，必读）
+
+本项目是租户级 SaaS，业务表必须同时隔离 `tenant_id` 与 `store_id`，编码时必须清楚租户字段从哪来。
+
+- 多租户开关与排除表在 Nacos `application-common.yml` 的 `tenant:` 节点：`enable` 控制总开关，`excludes` 列出不做租户隔离的表（`sys_menu`、`sys_tenant`、`sys_role_dept` 等框架表）。新增业务表默认走租户隔离，不要随手加进 `excludes`。
+- 租户 SQL 注入由 `PlusTenantLineHandler`（实现 MP `TenantLineHandler`）自动追加 `tenant_id` 条件，业务查询不需要手写 `tenant_id = ?`。
+- 实体需要 `tenant_id` 字段时，优先继承 `org.dromara.common.tenant.core.TenantEntity`（已继承 `BaseEntity` 并带 `tenantId`），而不是自己 extends `BaseEntity` 再重复声明字段。
+- 当前版本没有 `@TenantIgnore` 注解（不要凭记忆写）；跳过租户隔离统一走 `TenantHelper.ignore(...)`。
+- 跨租户的系统级操作（平台超管开租户、写租户包配置等）用 `TenantHelper.ignore(...)` 包裹最小范围。
+- 需要以指定租户身份执行时用 `TenantHelper.dynamic(tenantId, () -> {...})`，用完确保清理（`clearDynamic`），避免线程复用串租户。
+- 当前登录租户 ID 通过 `TenantHelper.getTenantId()` 获取；不要从请求参数里直接取租户 ID 参与查询。
+- 门店维度隔离（`store_id`）是业务层自己的责任，框架只管 `tenant_id`；按门店过滤要走本项目自己的数据权限或显式 `store_id` 条件。
 
 ## translation 规则
 

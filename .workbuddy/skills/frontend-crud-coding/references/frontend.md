@@ -77,6 +77,7 @@
 - 弹窗状态使用 `const dialog = reactive<DialogOption>({ visible: false, title: '' })`；仅当已有页面使用 `src/hooks/useDialog.ts` 时跟随。
 - 查询和表单状态放在 `reactive<PageData<XxxForm, XxxQuery>>({ form: { ...initFormData }, queryParams, rules })`，再 `toRefs(data)`。
 - 表单引用命名为 `queryFormRef` 和 `<business>FormRef`，类型 `ref<ElFormInstance>()`。
+- 页面初始化在 `onMounted(() => { getList(); })` 中调用列表接口。
 
 ## 页面行为规则
 
@@ -107,7 +108,8 @@
 
 ## 组件与样式规则
 
-- 优先复用公共组件：`right-toolbar`、`pagination`、`dict-tag`、`image-preview`、`image-upload`、`file-upload`、`editor` 等（均在 `src/components`，部分已全局注册）。
+- `src/components` 下的组件由 `unplugin-vue-components` 默认目录扫描自动注册，模板里直接用 kebab-case 标签、无需 import：`right-toolbar`、`pagination`、`dict-tag`、`image-preview`、`image-upload`、`file-upload`、`editor`、`role-select`、`user-select`、`parent-view` 等（Element Plus 与图标由 resolver 自动导入）。
+- 现有页面里 kebab-case 与 PascalCase 两种写法都可能出现，跟随所改文件的现状，不要顺手统一。
 - 标准页面使用 5.x 默认结构（`p-2` + `el-card`），不堆大量内联样式。
 - 需要自定义样式时在页面内加 `<style lang="scss" scoped>`，跟随相邻页面写法。
 - 不要为了单页需求修改全局组件样式。

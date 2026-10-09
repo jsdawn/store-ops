@@ -65,7 +65,7 @@
 - 保留 `v-hasPermi="['module:business:add']"` 这类权限指令。
 - 继续使用仓库已有组件：`right-toolbar`、`pagination`、`dict-tag`、`image-preview`、`image-upload`、`file-upload`、`editor`。
 - 已有页面对时间列使用 `parseTime`（`proxy?.parseTime`）时，新页面保持一致。
-- BETWEEN 日期查询继续使用 `el-date-picker` + 页面内 `dateRange` ref，查询时通过 `addDateRange(queryParams.value, dateRange.value)` 之类现有方式拼接。
+- BETWEEN 日期查询使用 `el-date-picker` 配页面内 `dateRange` ref，查询时调用 `proxy?.addDateRange(queryParams.value, dateRange.value)` 拼出 `beginTime` / `endTime`（参考 `src/views/system/user/index.vue`）。不要改用 6.x 的 `useDateRangeQuery`。
 - 不要引入 6.x 的 `search-panel` / `toolbar-shell` / `data-table` / `page-shell` SCSS 体系，当前前端不存在这些类名。
 
 ## 避免事项
