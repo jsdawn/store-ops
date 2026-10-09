@@ -1,4 +1,4 @@
-# ops-store 门店管理 · 详细设计与数据库设计
+# 门店管理（ops-business · store 域）· 详细设计与数据库设计
 
 > 版本：v1.0（2026-10-09）
 > 依据：《store-ops 架构设计方案》v1.3、《store-ops 产品需求文档 PRD》v1.1 5.0 节、管理台原型 `docs/prototype/admin-prototype.html`
@@ -15,7 +15,7 @@
 - 状态生命周期：仅启用 ↔ 停用，**本期不提供删除**；停用不清理数据，重新启用即恢复
 - 菜单权限：仅租户管理员；店长指定走「员工挂部门 + 角色配置」，不在本模块
 
-## 2. 全局约定（首个模块定稿，后续模块文档直接引用）
+## 2. 全局约定（首个域定稿，后续域文档直接引用）
 
 | 项 | 约定 | 说明 |
 |---|---|---|
@@ -41,7 +41,7 @@ sys_dept (框架)                     biz_store（本模块）
 dept_id      ◄──────────────────── dept_id（唯一）
 （租户总部）                          │ 1
 （└ 门店部门）                        │ N
-                                    biz_member / biz_order / biz_coupon...（后续模块，均带 store_id + dept_id）
+                                    biz_member / biz_order / biz_coupon...（后续域包，均带 store_id + dept_id）
 ```
 
 - dept 承担「组织架构 + 数据权限」，store 承担「经营主体」，`store.dept_id` 关联二者
@@ -91,10 +91,10 @@ CREATE TABLE `biz_store` (
 
 ### 4.1 模块与服务
 
-- Maven 模块：`ruoyi-modules/ops-store`，包名 `org.dromara.store`（跟随框架包结构，便于复用 common 能力）
-- Nacos 服务名：`ops-store`，配置 dataId `ops-store.yaml`（端口、数据源、Dubbo）
-- 网关路由：`/store/** → lb://ops-store`，无需白名单（管理台接口，需登录）
-- 开发期按项目约定只起 gateway + auth + system + ops-store
+- Maven 模块：`ruoyi-modules/ops-business`（业务聚合模块，2026-10-09 定案，域按包划分），store 域包名 `org.dromara.business.store`（跟随框架包结构，便于复用 common 能力）
+- Nacos 服务名：`ops-business`，服务端口 `9206`（框架模块 9201~9205 顺延），配置 dataId `ops-business.yaml`（端口、数据源等，全部业务域共用一份）
+- 网关路由：`/store/** → lb://ops-business`，URL 前缀仍按域划分，无需白名单（管理台接口，需登录）
+- 开发期固定起 gateway + auth + system + ops-business 四个服务，后续里程碑不再新增服务进程
 
 ### 4.2 管理台 REST 接口
 
@@ -128,20 +128,24 @@ CREATE TABLE `biz_store` (
 - `GET /store/unbound-depts`：Dubbo 调 `RemoteDeptService.selectDeptsByList()` 取本租户部门 → 本地查 biz_store 表已占用 dept_id 集合 → 差集返回 `[{deptId, deptName}]`。仅返回租户总部下一层的「门店部门」形态由前端树形下拉自然表达，接口不做层级过滤。
 - `GET /store/list` 返回 StoreVo 额外带 `deptName`（join 或查后补齐），供列表「绑定部门」列展示。
 
-### 4.3 服务间接口（Dubbo）
+### 4.3 域间接口（模块内本地调用）
 
-新建 `ruoyi-api/ruoyi-api-ops` 工程（业务模块共用一个 api 工程，避免每模块一个；框架的 ruoyi-api-system 不放业务接口）：
+业务合并为单模块后，member/order 等域消费门店能力是**同模块本地方法调用**，无需 Dubbo、无需 Remote 接口与 ruoyi-api-ops 工程（若将来按域拆模块再引入）：
 
 ```java
-public interface RemoteStoreService {
-    /** 按 ID 查门店（含 status/tenantId），供 member/order 等模块校验门店归属与状态 */
-    RemoteStoreVo selectStoreById(Long storeId);
+// store 域对外门面：org.dromara.business.store.service.IStoreService
+// 跨域消费只允许走 service 接口，禁止跨包注入 Mapper（守拆分演进纪律）
+public interface IStoreService {
+    /** 按 ID 查门店（含 status/tenantId），供 member/order 域校验门店归属与状态 */
+    StoreVo queryStoreById(Long storeId);
     /** 按部门 ID 查门店（员工登录后定位所属门店） */
-    RemoteStoreVo selectStoreByDeptId(Long deptId);
+    StoreVo queryStoreByDeptId(Long deptId);
 }
 ```
 
-消费方（后续模块）：顾客建档校验门店启用、收银校验门店归属、员工工作台定位当前店。另需在 ruoyi-api-system 的 `RemoteDeptService` 补一个 `selectDeptById(Long deptId)`（现有接口无单查方法，框架侧小改）。
+消费方（后续域包）：顾客建档校验门店启用、收银校验门店归属、员工工作台定位当前店——直接注入 `IStoreService`，无网络开销，跨域联动走本地事务。
+
+跨模块调用仅剩 ruoyi-system（部门/用户）：Dubbo 走框架 `ruoyi-api-system` 的 `RemoteDeptService`，需补一个 `selectDeptById(Long deptId)`（现有接口无单查方法，框架侧小改）。
 
 ## 5. 业务规则落地
 
@@ -173,7 +177,7 @@ PRD 5.0 节原允许「换绑时选未占用部门」，但全局约定业务表
 
 ### 5.5 停用联动
 
-停用**不写任何联动数据**，消费方实时校验（Dubbo `selectStoreById` 读 status）：
+停用**不写任何联动数据**，消费方实时校验（域内调 `IStoreService.queryStoreById` 读 status）：
 
 | 消费方 | 行为 |
 |---|---|

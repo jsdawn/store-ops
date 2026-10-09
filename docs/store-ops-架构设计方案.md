@@ -1,10 +1,10 @@
 # store-ops 多租户门店经营系统 · 架构设计方案
 
-> 版本：v1.4（2026-10-09：业务表统一 biz_ 前缀）
-> 状态：设计完成，待搭建骨架
-> v1.1 变更：补充小程序 appid 模式、微信支付通道、顾客身份鉴权三大遗漏；修正 member 唯一约束、预约时段模型、订单幂等、开发环境最小化
-> v1.2 变更：预约模块与真实微信支付推迟到上线后迭代；首版 MVP 收敛为 会员 + 记账收银 + 积分 + 报表
-> v1.3 变更：会员唯一标识改为门店 + 手机号（open_id 降级为登录凭证）；顾客端支持手动切换已注册门店；核心表清单补充余额/充值/优惠券四表，member 增加 balance，point_balance 改 decimal，order 增加优惠券字段（对齐 PRD v1.0）
+> 版本：v1.4（2026-10-09：业务表统一 biz_ 前缀）  
+> 状态：设计完成，待搭建骨架  
+> v1.1 变更：补充小程序 appid 模式、微信支付通道、顾客身份鉴权三大遗漏；修正 member 唯一约束、预约时段模型、订单幂等、开发环境最小化  
+> v1.2 变更：预约模块与真实微信支付推迟到上线后迭代；首版 MVP 收敛为 会员 + 记账收银 + 积分 + 报表  
+> v1.3 变更：会员唯一标识改为门店 + 手机号（open_id 降级为登录凭证）；顾客端支持手动切换已注册门店；核心表清单补充余额/充值/优惠券四表，member 增加 balance，point_balance 改 decimal，order 增加优惠券字段（对齐 PRD v1.0）  
 > v1.4 变更：业务表统一 `biz_` 前缀（与框架 sys_ 表区分、解决 order 保留字），核心表清单同步更名
 
 ---
@@ -13,12 +13,12 @@
 
 **store-ops** 是一套面向实体门店的多租户经营 SaaS 系统，覆盖四大核心业务：
 
-| 功能模块 | 说明 |
-|---|---|
-| 会员管理 | 门店会员池、等级、开卡归属 |
+| 功能模块 | 说明               |
+| ---- | ---------------- |
+| 会员管理 | 门店会员池、等级、开卡归属    |
 | 积分兑换 | 消费攒分、积分商城兑换、流水记账 |
-| 智能收银 | 小程序开单收款、订单流水 |
-| 服务预约 | 顾客在线预约、门店核销 |
+| 智能收银 | 小程序开单收款、订单流水     |
+| 服务预约 | 顾客在线预约、门店核销      |
 
 **商业形态**：平台方（超管）向商家售卖系统使用权。租户 = 品牌方或单店商家：
 
@@ -39,11 +39,14 @@ store-ops/
 │   ├── ruoyi-common/         # 公共模块
 │   ├── ruoyi-modules/
 │   │   ├── ruoyi-system/     # 框架自带：租户、用户、权限
-│   │   ├── ops-store/        # 门店管理
-│   │   ├── ops-member/       # 会员（门店级）
-│   │   ├── ops-point/        # 积分（门店级）
-│   │   ├── ops-order/        # 收银订单（门店级）
-│   │   └── ops-booking/      # 服务预约（门店级）
+│   │   └── ops-business/     # 业务聚合模块（唯一可运行业务服务）
+│   │       └── org.dromara.business/
+│   │           ├── store/    # 门店管理（P1）
+│   │           ├── member/   # 会员（门店级，P2）
+│   │           ├── order/    # 收银订单（门店级，P2）
+│   │           ├── point/    # 积分（门店级，P3）
+│   │           └── report/   # 报表（P4）
+│   |           └── booking/  # 预约 booking 域推迟 P6+，届时加包
 │   └── sql/
 ├── ops-admin/                # 管理台（Vue3 + TS + Element Plus）
 └── ops-mp/                   # 微信小程序（uni-app Vue3）
@@ -55,25 +58,27 @@ store-ops/
 
 **命名约定**：框架模块保留 ruoyi 原名（便于跟随官方升级），业务模块统一 ops- 前缀（一眼区分框架代码与自研代码）。
 
+**模块粒度定案（2026-10-09）**：业务功能不按域拆微服务，**合并为单一可运行模块 `ops-business`**，域按包划分（store/member/order/point/report）。理由：①「开单收款 → 余额扣减 → 积分累计」等核心链路跨域联动在同模块内是本地事务（`@Transactional`），拆开则退化为 Dubbo RPC + Seata 分布式事务；②单人开发 + 单台 2C/2G 服务器，多业务服务内存与运维成本不成比例；③域内分包 + 跨域只走 service 接口的纪律，保留将来按域拆模块的低成本演进路径。跨模块 RPC 仅剩业务 ↔ ruoyi-system（部门/用户查询）。
+
 ---
 
 ## 3. 技术选型
 
-| 项 | 选型 | 说明 |
-|---|---|---|
-| 后端框架 | RuoYi-Cloud-Plus | dromara 组织维护，微服务 + 多租户开箱即用 |
-| 技术栈 | JDK 17/21 + Spring Boot 3 | Spring Cloud Alibaba（Nacos + Gateway）、Sa-Token、MyBatis-Plus |
-| 多租户 | MyBatis-Plus 租户拦截器 | tenant_id 自动注入，业务代码无感 |
-| 管理台前端 | RuoYi-Cloud-Plus-UI | Vue3 + TS + Element Plus + Vite |
-| 小程序 | uni-app (Vue3) | 顾客 + 店员双角色同一个小程序 |
-| 数据库 | MySQL 8.x | |
-| 缓存 | Redis | |
-| 注册/配置中心 | Nacos 2.2+ | |
+| 项       | 选型                        | 说明                                                          |
+| ------- | ------------------------- | ----------------------------------------------------------- |
+| 后端框架    | RuoYi-Cloud-Plus          | dromara 组织维护，微服务 + 多租户开箱即用                                  |
+| 技术栈     | JDK 17/21 + Spring Boot 3 | Spring Cloud Alibaba（Nacos + Gateway）、Sa-Token、MyBatis-Plus |
+| 多租户     | MyBatis-Plus 租户拦截器        | tenant_id 自动注入，业务代码无感                                       |
+| 管理台前端   | RuoYi-Cloud-Plus-UI       | Vue3 + TS + Element Plus + Vite                             |
+| 小程序     | uni-app (Vue3)            | 顾客 + 店员双角色同一个小程序                                            |
+| 数据库     | MySQL 8.x                 |                                                             |
+| 缓存      | Redis                     |                                                             |
+| 注册/配置中心 | Nacos 2.2+                |                                                             |
 
 **仓库地址**
 
-- 后端：https://gitee.com/dromara/RuoYi-Cloud-Plus
-- 文档：https://plus-doc.dromara.org/
+- 后端：<https://gitee.com/dromara/RuoYi-Cloud-Plus>
+- 文档：<https://plus-doc.dromara.org/>
 - 前端：RuoYi-Cloud-Plus-UI（链接见仓库 README）
 
 **选型说明**：官方 y_project/RuoYi-Cloud 无多租户，不可用；yudao-cloud 功能全但体量过重，二次开发心智负担大。RuoYi-Cloud-Plus 结构贴近若依、多租户内建，是"每一行都改得动"的最优解。注意 JavaLionLi 原仓库已迁移至 dromara 组织。
@@ -104,20 +109,20 @@ tenant 租户（品牌方 / 单店商家）        ← tenant_id 框架自动隔
 
 ### 4.3 核心表清单（初稿）
 
-| 表 | 归属 | 关键字段 |
-|---|---|---|
-| biz_store | 租户 | store_name, address, status, dept_id |
-| biz_member | 门店 | store_id, mobile(必填, 唯一键), open_id, level_id, balance(decimal), point_balance(decimal) |
-| biz_recharge_log | 门店 | member_id, store_id, amount(本金), gift_amount(赠送), pay_type, operator_id |
-| biz_balance_log | 门店 | member_id, store_id, change, biz_order_id, type(充值/消费/冲正) |
-| biz_point_log | 门店 | member_id, store_id, change, biz_order_id, type |
-| biz_coupon_template | 门店 | store_id, name, type(满减/折扣), threshold, value, discount, cap, cost_point, total, per_limit, valid_days, status |
-| biz_coupon | 门店 | template_id, member_id, store_id, status(未使用/已使用/已过期), expire_at, used_order_id |
-| biz_order | 门店 | store_id, member_id, amount(总额), coupon_id, discount_amount(优惠额), pay_amount(应付), pay_type(余额/微信/支付宝/现金), status |
-| biz_order_item | 订单 | order_id, sku, qty, price |
-| biz_booking | 门店 | store_id, member_id, service_id, staff_id, time, status |
-| biz_service | 门店 | store_id, name, price, duration |
-| biz_booking_slot | 门店 | store_id, date, time_range, capacity, used |
+| 表                   | 归属 | 关键字段                                                                                                             |
+| ------------------- | -- | ---------------------------------------------------------------------------------------------------------------- |
+| biz_store           | 租户 | store_name, address, status, dept_id                                                                             |
+| biz_member          | 门店 | store_id, mobile(必填, 唯一键), open_id, level_id, balance(decimal), point_balance(decimal)                           |
+| biz_recharge_log    | 门店 | member_id, store_id, amount(本金), gift_amount(赠送), pay_type, operator_id                                          |
+| biz_balance_log     | 门店 | member_id, store_id, change, biz_order_id, type(充值/消费/冲正)                                                        |
+| biz_point_log       | 门店 | member_id, store_id, change, biz_order_id, type                                                                  |
+| biz_coupon_template | 门店 | store_id, name, type(满减/折扣), threshold, value, discount, cap, cost_point, total, per_limit, valid_days, status   |
+| biz_coupon          | 门店 | template_id, member_id, store_id, status(未使用/已使用/已过期), expire_at, used_order_id                                  |
+| biz_order           | 门店 | store_id, member_id, amount(总额), coupon_id, discount_amount(优惠额), pay_amount(应付), pay_type(余额/微信/支付宝/现金), status |
+| biz_order_item      | 订单 | order_id, sku, qty, price                                                                                        |
+| biz_booking         | 门店 | store_id, member_id, service_id, staff_id, time, status                                                          |
+| biz_service         | 门店 | store_id, name, price, duration                                                                                  |
+| biz_booking_slot    | 门店 | store_id, date, time_range, capacity, used                                                                       |
 
 **金额与积分精度**：金额（balance、amount 等）与积分（point_balance、cost_point 等）统一以「分」为最小单位存储（decimal，两位小数），PRD 定稿要求积分不取整、等额转化。
 
@@ -129,12 +134,12 @@ tenant 租户（品牌方 / 单店商家）        ← tenant_id 框架自动隔
 
 ## 5. 权限体系
 
-| 角色 | 数据范围 | 实现方式 |
-|---|---|---|
-| 平台超管 | 全平台（不属于任何租户） | 框架超管账号 |
-| 租户管理员（品牌方） | 本租户全部门店 | 租户超管角色 |
-| 店长 | 本店 | RuoYi 数据权限 = 本部门 |
-| 店员/收银员 | 本店操作级 | 岗位权限 |
+| 角色         | 数据范围         | 实现方式             |
+| ---------- | ------------ | ---------------- |
+| 平台超管       | 全平台（不属于任何租户） | 框架超管账号           |
+| 租户管理员（品牌方） | 本租户全部门店      | 租户超管角色           |
+| 店长         | 本店           | RuoYi 数据权限 = 本部门 |
+| 店员/收银员     | 本店操作级        | 岗位权限             |
 
 - 员工组织：RuoYi 的 dept 树映射 `租户总部 → 各门店` 两层
 - 同一统计接口，店长查到 1 家店、租户管理员查到 N 家店——数据权限自动拼过滤条件，业务代码不写 if
@@ -148,7 +153,7 @@ tenant 租户（品牌方 / 单店商家）        ← tenant_id 框架自动隔
 
 1. 商家谈妥后，超管登录后台 → 租户管理 → 新增租户：填商家名、设租户管理员账号密码、选套餐、设到期时间
 2. 账号发给商家
-3. 商家登录后自建门店（ops-store）、拉员工、配角色
+3. 商家登录后自建门店（ops-business 的 store 域）、拉员工、配角色
 
 **租户套餐 = 版本分级**：套餐即菜单权限集——免费版（收银+会员）、标准版（+积分）、旗舰版（+预约+报表），改勾选即可调整售卖版本，不动代码。到期时间 = 订阅周期，过期自动停用。
 
@@ -160,13 +165,13 @@ tenant 租户（品牌方 / 单店商家）        ← tenant_id 框架自动隔
 
 核心口诀：**所有口径按 store_id 聚合**，不依赖会员主表：
 
-| 指标 | 算法 |
-|---|---|
-| 开卡数 | member 按 store_id group |
-| 营业额/单量 | order 按 store_id group |
-| 新客 vs 老客 | order join member，是否本店首单 |
-| 会员到店频次/常消费店 | order 按 member_id 聚合 |
-| 积分产出/消耗 | point_log 按 store_id 分正负聚合 |
+| 指标          | 算法                         |
+| ----------- | -------------------------- |
+| 开卡数         | member 按 store_id group    |
+| 营业额/单量      | order 按 store_id group     |
+| 新客 vs 老客    | order join member，是否本店首单   |
+| 会员到店频次/常消费店 | order 按 member_id 聚合       |
+| 积分产出/消耗     | point_log 按 store_id 分正负聚合 |
 
 **报表形态**（租户视角）：全品牌大盘（营业额/单量/新客/会员总数 + 环比）→ 门店对比排行 → 单店下钻趋势。
 
@@ -205,11 +210,11 @@ tenant 租户（品牌方 / 单店商家）        ← tenant_id 框架自动隔
 
 ### 8.4 支付通道（分阶段）
 
-| 阶段 | 方案 | 说明 |
-|---|---|---|
-| 首版（收银上线） | 记账式收银 | 现金/到店付标记收款，不接真实支付 |
-| 上线后迭代 | 租户直连商户号 | 租户配置存 `wx_mchid`/证书，每商家配自己的微信支付商户号 |
-| 远期（规模化） | 微信支付服务商模式 | 平台申请服务商资质，商家为子商户（有申请门槛） |
+| 阶段       | 方案        | 说明                                 |
+| -------- | --------- | ---------------------------------- |
+| 首版（收银上线） | 记账式收银     | 现金/到店付标记收款，不接真实支付                  |
+| 上线后迭代    | 租户直连商户号   | 租户配置存 `wx_mchid`/证书，每商家配自己的微信支付商户号 |
+| 远期（规模化）  | 微信支付服务商模式 | 平台申请服务商资质，商家为子商户（有申请门槛）            |
 
 租户配置表预留 `wx_mchid` 字段，首版不启用。
 
@@ -222,21 +227,21 @@ tenant 租户（品牌方 / 单店商家）        ← tenant_id 框架自动隔
 
 ## 9. 实施路线
 
-| 阶段 | 内容 | 验收标准 |
-|---|---|---|
-| P0 环境与骨架 | 装 JDK 17，拉 RuoYi-Cloud-Plus + UI，重组 store-ops 结构，导 SQL，起 Nacos/MySQL/Redis | 原样跑通：登录管理台、可见租户管理菜单 |
-| P1 门店与组织 | ops-store 模块 + dept 映射门店 + 店长数据权限 | 超管开租户 → 商家建店 → 店长只见本店 |
-| P2 会员与收银 | ops-member + ops-order（记账式收银） | 店员开单收款 → 会员余额/积分联动 |
-| P3 积分 | ops-point（消费攒分、积分商城兑换核销） | 顾客端积分闭环 |
-| P4 报表 | 租户大盘 + 门店对比 + 下钻 | 三层报表可演示 |
-| P5 上线 | 部署上线、report_store_daily 预聚合 | MVP 可对外演示 |
-| P6+ 上线后迭代 | ops-booking 预约模块、真实微信支付（租户商户号 → 服务商模式） | 按运营反馈排期 |
+| 阶段        | 内容                                                                         | 验收标准                  |
+| --------- | -------------------------------------------------------------------------- | --------------------- |
+| P0 环境与骨架  | 装 JDK 17，拉 RuoYi-Cloud-Plus + UI，重组 store-ops 结构，导 SQL，起 Nacos/MySQL/Redis | 原样跑通：登录管理台、可见租户管理菜单   |
+| P1 门店与组织  | ops-business 模块 + store 域包 + dept 映射门店 + 店长数据权限                            | 超管开租户 → 商家建店 → 店长只见本店 |
+| P2 会员与收银  | ops-business 增 member + order 域包（记账式收银，跨域联动走本地事务）                          | 店员开单收款 → 会员余额/积分联动    |
+| P3 积分     | ops-business 增 point 域包（消费攒分、积分商城兑换核销）                                     | 顾客端积分闭环               |
+| P4 报表     | 租户大盘 + 门店对比 + 下钻                                                           | 三层报表可演示               |
+| P5 上线     | 部署上线、report_store_daily 预聚合                                                | MVP 可对外演示             |
+| P6+ 上线后迭代 | ops-business 增 booking 域包（预约）、真实微信支付（租户商户号 → 服务商模式）                        | 按运营反馈排期               |
 
 **首版 MVP 范围**：会员管理 + 记账收银 + 积分商城 + 报表；小程序首版功能 = 注册/查看积分 + 店员收银 + 积分兑换核销，预约入口不上线。预约相关表（booking / booking_slot / service）设计保留，实现推迟。
 
 **开发环境注意**：
 
-- 微服务全量 8+ 进程（gateway/auth/system/5 个业务模块）× 500M~1G 内存，**开发期只起 gateway + auth + system + 当前开发模块**
+- 业务合并为单一 `ops-business` 模块后，全量固定 4 服务（gateway / auth / system / ops-business）× 500M~1G 内存，**开发期只起这 4 个，不再随里程碑增长**
 - 新版框架默认集成 SnailJob 分布式任务调度，启动文档需确认是否要额外起调度服务
 - 业务表避免 `sys_` 前缀（框架表被排除在租户过滤外）；P1 第一张业务表生成后验证一次租户拦截器是否生效
 

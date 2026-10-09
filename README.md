@@ -20,9 +20,9 @@
 │         ruoyi-gateway :8080             │
 └───────┬──────────┬──────────┬───────────┘
         ▼          ▼          ▼
-   ruoyi-auth  ruoyi-system  ops-* 业务模块(规划)
-     :9210       :9201      ops-store / ops-member /
-                            ops-point / ops-order
+   ruoyi-auth  ruoyi-system  ops-business 业务聚合模块
+     :9210       :9201      :9206 (store/member/
+                            order/point/report 域包)
         └────── Dubbo RPC + Nacos 注册/配置 ──────┘
                      ▼
         MySQL 8 · Redis · Nacos
