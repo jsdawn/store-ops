@@ -72,6 +72,13 @@ spring:
                 - Path=/resource/**
               filters:
                 - StripPrefix=1
+            # 门店经营业务（ops-business：/store/** 管理台，/mp/store/** 小程序随 P2 增补）
+            - id: ops-business
+              uri: lb://ops-business
+              predicates:
+                - Path=/store/**
+              filters:
+                - StripPrefix=1
             # workflow服务
             - id: ruoyi-workflow
               uri: lb://ruoyi-workflow

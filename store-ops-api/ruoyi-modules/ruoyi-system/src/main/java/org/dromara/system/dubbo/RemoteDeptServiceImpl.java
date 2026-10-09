@@ -2,6 +2,7 @@ package org.dromara.system.dubbo;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.collection.CollUtil;
+import cn.hutool.core.util.ObjectUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
 import org.apache.dubbo.config.annotation.DubboService;
@@ -85,6 +86,29 @@ public class RemoteDeptServiceImpl implements RemoteDeptService {
                 .in(SysDept::getDeptId, deptIds)
         );
         return StreamUtils.toMap(list, SysDept::getDeptId, SysDept::getDeptName);
+    }
+
+    /**
+     * 通过部门ID查询部门（租户插件隔离，跨租户 deptId 返回 null）
+     *
+     * @param deptId 部门ID
+     * @return 部门信息
+     */
+    @Override
+    public RemoteDeptVo selectDeptById(Long deptId) {
+        if (ObjectUtil.isNull(deptId)) {
+            return null;
+        }
+        SysDept dept = deptMapper.selectById(deptId);
+        if (dept == null) {
+            return null;
+        }
+        RemoteDeptVo vo = new RemoteDeptVo();
+        vo.setDeptId(dept.getDeptId());
+        vo.setParentId(dept.getParentId());
+        vo.setDeptName(dept.getDeptName());
+        vo.setStatus(dept.getStatus());
+        return vo;
     }
 
 }

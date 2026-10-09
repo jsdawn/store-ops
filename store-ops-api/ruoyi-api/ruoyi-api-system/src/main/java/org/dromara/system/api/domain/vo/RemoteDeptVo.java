@@ -34,4 +34,9 @@ public class RemoteDeptVo implements Serializable {
      */
     private String deptName;
 
+    /**
+     * 部门状态:0正常,1停用
+     */
+    private String status;
+
 }

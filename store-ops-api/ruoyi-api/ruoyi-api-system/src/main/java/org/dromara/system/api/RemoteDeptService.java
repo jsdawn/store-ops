@@ -43,4 +43,12 @@ public interface RemoteDeptService {
      */
     Map<Long, String> selectDeptNamesByIds(List<Long> deptIds);
 
+    /**
+     * 通过部门ID查询部门（租户插件隔离，跨租户 deptId 返回 null）
+     *
+     * @param deptId 部门ID
+     * @return 部门信息
+     */
+    RemoteDeptVo selectDeptById(Long deptId);
+
 }
