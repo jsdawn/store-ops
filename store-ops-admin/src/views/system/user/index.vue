@@ -101,14 +101,22 @@
             <el-table-column v-if="columns[1].visible" key="userName" label="用户名称" align="center" prop="userName" :show-overflow-tooltip="true" />
             <el-table-column v-if="columns[2].visible" key="nickName" label="用户昵称" align="center" prop="nickName" :show-overflow-tooltip="true" />
             <el-table-column v-if="columns[3].visible" key="deptName" label="部门" align="center" prop="deptName" :show-overflow-tooltip="true" />
-            <el-table-column v-if="columns[4].visible" key="phonenumber" label="手机号码" align="center" prop="phonenumber" width="120" />
-            <el-table-column v-if="columns[5].visible" key="status" label="状态" align="center">
+            <el-table-column v-if="columns[4].visible" key="roles" label="角色" align="center" prop="roles" :show-overflow-tooltip="true">
+              <template #default="scope">
+                <template v-if="scope.row.roles && scope.row.roles.length">
+                  <el-tag v-for="role in scope.row.roles" :key="role.roleId" size="small" style="margin: 1px">{{ role.roleName }}</el-tag>
+                </template>
+                <span v-else>-</span>
+              </template>
+            </el-table-column>
+            <el-table-column v-if="columns[5].visible" key="phonenumber" label="手机号码" align="center" prop="phonenumber" width="120" />
+            <el-table-column v-if="columns[6].visible" key="status" label="状态" align="center">
               <template #default="scope">
                 <el-switch v-model="scope.row.status" active-value="0" inactive-value="1" @change="handleStatusChange(scope.row)"></el-switch>
               </template>
             </el-table-column>
 
-            <el-table-column v-if="columns[6].visible" label="创建时间" align="center" prop="createTime" width="160">
+            <el-table-column v-if="columns[7].visible" label="创建时间" align="center" prop="createTime" width="160">
               <template #default="scope">
                 <span>{{ scope.row.createTime }}</span>
               </template>
@@ -338,9 +346,10 @@ const columns = ref<FieldOption[]>([
   { key: 1, label: `用户名称`, visible: true, children: [] },
   { key: 2, label: `用户昵称`, visible: true, children: [] },
   { key: 3, label: `部门`, visible: true, children: [] },
-  { key: 4, label: `手机号码`, visible: true, children: [] },
-  { key: 5, label: `状态`, visible: true, children: [] },
-  { key: 6, label: `创建时间`, visible: true, children: [] }
+  { key: 4, label: `角色`, visible: true, children: [] },
+  { key: 5, label: `手机号码`, visible: true, children: [] },
+  { key: 6, label: `状态`, visible: true, children: [] },
+  { key: 7, label: `创建时间`, visible: true, children: [] }
 ]);
 
 const deptTreeRef = ref<ElTreeInstance>();
@@ -615,9 +624,7 @@ const handleUpdate = async (row?: UserForm) => {
   dialog.title = '修改用户';
   Object.assign(form.value, data.user);
   postOptions.value = data.posts;
-  roleOptions.value = Array.from(
-    new Map([...data.roles, ...data.user.roles].map(role => [role.roleId, role])).values()
-  );
+  roleOptions.value = Array.from(new Map([...data.roles, ...data.user.roles].map((role) => [role.roleId, role])).values());
   form.value.postIds = data.postIds;
   form.value.roleIds = data.roleIds;
   form.value.password = '';

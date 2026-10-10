@@ -23,7 +23,7 @@
 | 主键 | 雪花 ID（`IdType.ASSIGN_ID`） | 不用自增，与框架全局一致 |
 | 租户隔离 | `tenant_id varchar(20)`，MyBatis-Plus 租户插件自动注入 | 业务代码不手写 tenant_id |
 | 门店归属 | 业务表统一带 `store_id bigint` | 架构 4.2 节 |
-| 数据权限 | 业务表**冗余 `dept_id bigint`**（= 门店绑定部门） | 店长「本部门」数据权限由框架插件按 dept_id 自动拼过滤，业务代码不写 if（架构 5 节）；冗余值在建档/开单时随 store_id 一起写入 |
+| 数据权限 | 业务表**冗余 `dept_id bigint`**（= 门店绑定部门） | 店长「本部门及以下」数据权限由框架插件按 dept_id 自动拼过滤，业务代码不写 if（架构 5 节）；冗余值在建档/开单时随 store_id 一起写入 |
 | 审计字段 | `create_dept / create_by / create_time / update_by / update_time` | 与 `BaseEntity` 自动填充对齐 |
 | 逻辑删除 | `del_flag char(1)` `@TableLogic` | 跟框架约定；本期门店无删除入口，字段预留 |
 | 状态取值 | `status char(1)`：`0` 启用 / `1` 停用 | 与 sys_dept 保持一致 |
@@ -107,7 +107,9 @@ CREATE TABLE `biz_store` (
 
 - Maven 模块：`ruoyi-modules/ops-business`（业务聚合模块，2026-10-09 定案，域按包划分），store 域包名 `org.dromara.business.store`（跟随框架包结构，便于复用 common 能力）
 - Nacos 服务名：`ops-business`，服务端口 `9206`（框架模块 9201~9205 顺延），配置 dataId `ops-business.yml`（框架惯例 `${spring.application.name}.yml`；端口、数据源等，全部业务域共用一份）
-- 网关路由：`/store/** → lb://ops-business`，URL 前缀仍按域划分，无需白名单（管理台接口，需登录）
+- 网关路由（对齐框架 `/服务简称/**` 惯例，auth、system、workflow 同理）：
+  - 管理台：`/business/** → lb://ops-business` + `StripPrefix=1`，网关前缀按服务命名（business），服务内路径按域划分（`/store/**`、`/member/**`...），管理台无白名单（需登录）
+  - 小程序端（随 P2 增补）：`/mp/** → lb://ops-business`，**不剥前缀**（mp Controller 自带 `/mp/store` 服务内前缀）；白名单 `/mp/**` 一刀切放行，届时同条路由追加白名单配置
 - 开发期固定起 gateway + auth + system + ops-business 四个服务，后续里程碑不再新增服务进程
 
 ### 4.2 管理台 REST 接口（pc 端）
@@ -136,12 +138,12 @@ CREATE TABLE `biz_store` (
 | 字段 | 类型 | 必填 | 校验 |
 |---|---|---|---|
 | storeName | string(≤20) | 是 | 租户内唯一 |
-| deptId | long | 是 | 存在、属本租户、未被占用 |
+| deptId | long | 是 | 存在、属本租户、未被占用、层级合规（仅根部门直接子部门，即租户下的一级部门） |
 | address | string(≤50) | 否 | |
 | status | char | 是 | 0/1，默认 0 |
 | remark | string(≤100) | 否 | |
 
-- `GET /store/unbound-depts`：Dubbo 调 `RemoteDeptService.selectDeptsByList()` 取本租户部门 → 本地查 biz_store 表已占用 dept_id 集合 → 差集返回 `[{deptId, deptName}]`。仅返回租户总部下一层的「门店部门」形态由前端树形下拉自然表达，接口不做层级过滤。
+- `GET /store/unbound-depts`：Dubbo 调 `RemoteDeptService.selectDeptsByList()` 取本租户部门 → 层级过滤（仅保留根部门 parent_id=0 的直接子部门，根部门自身与更深层级不可绑店）→ 本地查 biz_store 表已占用 dept_id 集合 → 差集返回 `[{deptId, deptName}]`。`checkDeptAvailable` 对同一层级规则做服务端兜底校验。
 - `GET /store/list` 返回 BizStoreVo 额外带 `deptName`（join 或查后补齐），供列表「绑定部门」列展示。
 
 ### 4.3 域间接口（模块内本地调用）

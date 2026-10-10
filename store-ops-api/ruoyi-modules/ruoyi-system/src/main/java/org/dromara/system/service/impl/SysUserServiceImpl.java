@@ -19,6 +19,7 @@ import org.dromara.common.core.utils.*;
 import org.dromara.common.mybatis.core.page.PageQuery;
 import org.dromara.common.mybatis.core.page.TableDataInfo;
 import org.dromara.common.satoken.utils.LoginHelper;
+import org.dromara.system.domain.SysRole;
 import org.dromara.system.domain.SysUser;
 import org.dromara.system.domain.SysUserPost;
 import org.dromara.system.domain.SysUserRole;
@@ -36,8 +37,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 用户 业务层处理
@@ -59,7 +64,36 @@ public class SysUserServiceImpl implements ISysUserService {
     @Override
     public TableDataInfo<SysUserVo> selectPageUserList(SysUserBo user, PageQuery pageQuery) {
         Page<SysUserVo> page = baseMapper.selectPageUserList(pageQuery.build(), this.buildQueryWrapper(user));
+        fillUserRoles(page.getRecords());
         return TableDataInfo.build(page);
+    }
+
+    /**
+     * 列表批量填充用户角色（sys_user_role + sys_role 两次查询，避免逐行 N+1）
+     */
+    private void fillUserRoles(List<SysUserVo> records) {
+        if (CollUtil.isEmpty(records)) {
+            return;
+        }
+        List<Long> userIds = records.stream().map(SysUserVo::getUserId).collect(Collectors.toList());
+        List<SysUserRole> userRoles = userRoleMapper.selectList(
+            new LambdaQueryWrapper<SysUserRole>().in(SysUserRole::getUserId, userIds));
+        if (CollUtil.isEmpty(userRoles)) {
+            return;
+        }
+        Map<Long, List<Long>> userIdToRoleIds = userRoles.stream()
+            .collect(Collectors.groupingBy(SysUserRole::getUserId,
+                Collectors.mapping(SysUserRole::getRoleId, Collectors.toList())));
+        Set<Long> roleIds = userRoles.stream().map(SysUserRole::getRoleId).collect(Collectors.toSet());
+        Map<Long, SysRoleVo> roleMap = roleMapper.selectVoList(new LambdaQueryWrapper<SysRole>()
+                .select(SysRole::getRoleId, SysRole::getRoleName, SysRole::getRoleKey,
+                    SysRole::getRoleSort, SysRole::getDataScope, SysRole::getStatus)
+                .in(SysRole::getRoleId, roleIds))
+            .stream().collect(Collectors.toMap(SysRoleVo::getRoleId, r -> r));
+        records.forEach(u -> {
+            List<Long> ids = userIdToRoleIds.getOrDefault(u.getUserId(), Collections.emptyList());
+            u.setRoles(ids.stream().map(roleMap::get).filter(Objects::nonNull).collect(Collectors.toList()));
+        });
     }
 
     /**

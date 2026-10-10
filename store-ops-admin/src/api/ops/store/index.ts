@@ -5,7 +5,7 @@ import { StoreDeptOption, StoreForm, StoreQrcodeVO, StoreQuery, StoreVO } from '
 // 查询门店列表
 export function listStore(query: StoreQuery): AxiosPromise<StoreVO[]> {
   return request({
-    url: '/store/list',
+    url: '/business/store/list',
     method: 'get',
     params: query
   });
@@ -14,7 +14,7 @@ export function listStore(query: StoreQuery): AxiosPromise<StoreVO[]> {
 // 查询门店详细
 export function getStore(storeId: string | number): AxiosPromise<StoreVO> {
   return request({
-    url: '/store/' + storeId,
+    url: '/business/store/' + storeId,
     method: 'get'
   });
 }
@@ -22,7 +22,7 @@ export function getStore(storeId: string | number): AxiosPromise<StoreVO> {
 // 新增门店
 export function addStore(data: StoreForm) {
   return request({
-    url: '/store',
+    url: '/business/store',
     method: 'post',
     data: data
   });
@@ -31,7 +31,7 @@ export function addStore(data: StoreForm) {
 // 修改门店（部门只读，不传 deptId）
 export function updateStore(data: StoreForm) {
   return request({
-    url: '/store',
+    url: '/business/store',
     method: 'put',
     data: data
   });
@@ -40,7 +40,7 @@ export function updateStore(data: StoreForm) {
 // 门店启停切换
 export function changeStoreStatus(storeId: string | number, status: string) {
   return request({
-    url: '/store/changeStatus',
+    url: '/business/store/changeStatus',
     method: 'put',
     data: { storeId, status }
   });
@@ -49,7 +49,7 @@ export function changeStoreStatus(storeId: string | number, status: string) {
 // 未绑定门店的部门下拉（新增数据源）
 export function listUnboundDepts(): AxiosPromise<StoreDeptOption[]> {
   return request({
-    url: '/store/unbound-depts',
+    url: '/business/store/unbound-depts',
     method: 'get'
   });
 }
@@ -57,7 +57,7 @@ export function listUnboundDepts(): AxiosPromise<StoreDeptOption[]> {
 // 门店精简下拉（仅启用门店）
 export function optionselect(): AxiosPromise<StoreVO[]> {
   return request({
-    url: '/store/optionselect',
+    url: '/business/store/optionselect',
     method: 'get'
   });
 }
@@ -65,7 +65,7 @@ export function optionselect(): AxiosPromise<StoreVO[]> {
 // 门店小程序码（P1 占位：返回 scene）
 export function getStoreQrcode(storeId: string | number): AxiosPromise<StoreQrcodeVO> {
   return request({
-    url: `/store/${storeId}/qrcode`,
+    url: `/business/store/${storeId}/qrcode`,
     method: 'get'
   });
 }

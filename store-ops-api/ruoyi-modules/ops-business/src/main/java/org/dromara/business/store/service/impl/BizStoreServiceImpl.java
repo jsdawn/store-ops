@@ -88,9 +88,9 @@ public class BizStoreServiceImpl implements IBizStoreService {
     }
 
     /**
-     * 查询未绑定门店的部门下拉
+     * 查询未绑定门店的部门下拉（仅二级部门：租户根部门直接子部门）
      *
-     * <p>Dubbo 取本租户正常状态部门 → 差集已占用 dept_id；层级形态由前端树形下拉表达，接口不做层级过滤。</p>
+     * <p>Dubbo 取本租户正常状态部门 → 过滤层级（根部门及其更深层级不可绑店）→ 差集已占用 dept_id。</p>
      */
     @Override
     public List<RemoteDeptVo> selectUnboundDepts() {
@@ -98,11 +98,24 @@ public class BizStoreServiceImpl implements IBizStoreService {
         if (CollUtil.isEmpty(depts)) {
             return depts;
         }
+        Long rootDeptId = resolveRootDeptId(depts);
         Set<Long> boundDeptIds = baseMapper.selectList(new LambdaQueryWrapper<BizStore>().select(BizStore::getDeptId))
             .stream().map(BizStore::getDeptId).collect(Collectors.toSet());
         return depts.stream()
             .filter(dept -> !boundDeptIds.contains(dept.getDeptId()))
+            .filter(dept -> rootDeptId != null && rootDeptId.equals(dept.getParentId()))
             .collect(Collectors.toList());
+    }
+
+    /**
+     * 解析租户根部门 ID（parent_id=0，每租户唯一）
+     */
+    private Long resolveRootDeptId(List<RemoteDeptVo> depts) {
+        return depts.stream()
+            .filter(dept -> Long.valueOf(0L).equals(dept.getParentId()))
+            .map(RemoteDeptVo::getDeptId)
+            .findFirst()
+            .orElse(null);
     }
 
     /**
@@ -179,7 +192,9 @@ public class BizStoreServiceImpl implements IBizStoreService {
     }
 
     /**
-     * 校验部门：存在、属本租户、未停用（Dubbo 单查，租户插件隔离，跨租户 deptId 返回 null）
+     * 校验部门：存在、属本租户、未停用、层级合规（仅根部门直接子部门可绑店）
+     *
+     * <p>Dubbo 单查，租户插件隔离，跨租户 deptId 返回 null</p>
      */
     private void checkDeptAvailable(Long deptId) {
         if (ObjectUtil.isNull(deptId)) {
@@ -191,6 +206,10 @@ public class BizStoreServiceImpl implements IBizStoreService {
         }
         if (!SystemConstants.NORMAL.equals(dept.getStatus())) {
             throw new ServiceException("部门已停用，无法绑定门店");
+        }
+        Long rootDeptId = resolveRootDeptId(remoteDeptService.selectDeptsByList());
+        if (rootDeptId == null || !rootDeptId.equals(dept.getParentId())) {
+            throw new ServiceException("门店只能绑定租户下的一级部门（根部门的直接子部门）");
         }
     }
 

@@ -72,13 +72,18 @@ spring:
                 - Path=/resource/**
               filters:
                 - StripPrefix=1
-            # 门店经营业务（ops-business：/store/** 管理台，/mp/store/** 小程序随 P2 增补）
+            # 门店经营业务-管理台（ops-business：网关前缀 /business 按服务命名，服务内按域 /store、/member... 划分）
             - id: ops-business
               uri: lb://ops-business
               predicates:
-                - Path=/store/**
+                - Path=/business/**
               filters:
                 - StripPrefix=1
+            # 门店经营业务-小程序端（不剥前缀，Controller 自带 /mp/store 前缀；白名单 /mp/** 随 P2 顾客端上线配置）
+            - id: ops-business-mp
+              uri: lb://ops-business
+              predicates:
+                - Path=/mp/**
             # workflow服务
             - id: ruoyi-workflow
               uri: lb://ruoyi-workflow
