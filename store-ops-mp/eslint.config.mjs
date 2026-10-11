@@ -19,6 +19,8 @@ export default uniHelper({
     'src/manifest.json',
     // 忽略自动生成文件
     'src/service/**',
+    // AI skill 示例代码（.agents/skills 下的演示文件），不参与业务 lint
+    '.agents/**',
   ],
   // https://eslint-config.antfu.me/rules
   rules: {
