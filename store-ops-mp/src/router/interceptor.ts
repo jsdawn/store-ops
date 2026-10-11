@@ -9,7 +9,7 @@ import { getLastPage, parseUrlToObj } from '@/utils/index'
 export const FG_LOG_ENABLE = false
 
 export const navigateToInterceptor = {
-  // 注意，这里的url是 '/' 开头的，如 '/pages/index/index'，跟 'pages.json' 里面的 path 不同
+  // 注意，这里的url是 '/' 开头的，如 '/pages/member/member'，跟 'pages.json' 里面的 path 不同
   // 增加对相对路径的处理，BY 网友 @ideal
   invoke({ url, query }: { url: string, query?: Record<string, string> }) {
     if (url === undefined) {

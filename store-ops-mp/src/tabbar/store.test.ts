@@ -16,7 +16,7 @@ vi.mock('./config', () => ({
 }))
 
 /** pages.json 里 type 为 home 的页面，H5 线上首页 '/' 会被还原成它 */
-const HOME_PATH = '/pages/index/index'
+const HOME_PATH = '/pages/member/member'
 
 function item(text: string, pagePath: string, roles?: string[]): CustomTabBarItem {
   return { text, pagePath, iconType: 'unocss', icon: 'i-carbon-home', roles } as CustomTabBarItem
@@ -24,16 +24,16 @@ function item(text: string, pagePath: string, roles?: string[]): CustomTabBarIte
 
 /** 首页所有人可见，「关于」仅 admin 可见 */
 const ADMIN_TAB_IS_LAST = [
-  item('首页', 'pages/index/index'),
-  item('我的', 'pages/me/me'),
-  item('关于', 'pages/about/about', ['admin']),
+  item('首页', 'pages/member/member'),
+  item('我的', 'pages/point/point'),
+  item('关于', 'pages/promo/promo', ['admin']),
 ]
 
 /** 首页（home）本身就是 admin 专属，对应 issue 里「首页是受限页」的场景 */
 const ADMIN_TAB_IS_HOME = [
-  item('首页', 'pages/index/index', ['admin']),
-  item('关于', 'pages/about/about'),
-  item('我的', 'pages/me/me'),
+  item('首页', 'pages/member/member', ['admin']),
+  item('关于', 'pages/promo/promo'),
+  item('我的', 'pages/point/point'),
 ]
 
 async function setupStore(list: CustomTabBarItem[], userInfo?: { role?: string, roles?: string[] }) {
@@ -95,7 +95,7 @@ describe('curIdx 高亮', () => {
     const { tabbarStore, tabbarList } = await setupStore(ADMIN_TAB_IS_HOME)
 
     // 无角色：可见 [关于, 我的]，停在「我的」
-    tabbarStore.setAutoCurIdx('/pages/me/me')
+    tabbarStore.setAutoCurIdx('/pages/point/point')
     expect(tabbarList.value[tabbarStore.curIdx].text).toBe('我的')
 
     // 登录成为 admin：可见变成 [首页, 关于, 我的]，仍然应该高亮「我的」
@@ -109,7 +109,7 @@ describe('curIdx 高亮', () => {
   it('跳转到非 tabbar 页面时保持当前高亮', async () => {
     const { tabbarStore, tabbarList } = await setupStore(ADMIN_TAB_IS_LAST)
 
-    tabbarStore.setAutoCurIdx('/pages/me/me')
+    tabbarStore.setAutoCurIdx('/pages/point/point')
     tabbarStore.setAutoCurIdx('/pages/detail/detail')
 
     expect(tabbarList.value[tabbarStore.curIdx].text).toBe('我的')
@@ -124,7 +124,7 @@ describe('curIdx 高亮', () => {
       seen.push(tabbarStore.curIdx)
     })
 
-    tabbarStore.setAutoCurIdx('/pages/me/me')
+    tabbarStore.setAutoCurIdx('/pages/point/point')
     await nextTick()
     stop()
 
@@ -135,7 +135,7 @@ describe('curIdx 高亮', () => {
   it('带 query 的路径也能正确高亮', async () => {
     const { tabbarStore, tabbarList } = await setupStore(ADMIN_TAB_IS_LAST)
 
-    tabbarStore.setAutoCurIdx('/pages/me/me?from=share')
+    tabbarStore.setAutoCurIdx('/pages/point/point?from=share')
 
     expect(tabbarList.value[tabbarStore.curIdx].text).toBe('我的')
   })
@@ -144,22 +144,22 @@ describe('curIdx 高亮', () => {
 describe('getTabbarRedirectPath 运行时角色守卫', () => {
   it('角色不足进入受限 tabbar 页时，回退到第一个可见项', async () => {
     const { getTabbarRedirectPath } = await setupStore(ADMIN_TAB_IS_LAST)
-    expect(getTabbarRedirectPath('/pages/about/about')).toBe(HOME_PATH)
+    expect(getTabbarRedirectPath('/pages/promo/promo')).toBe(HOME_PATH)
   })
 
   it('首页就是受限页时，首屏 "/" 也会被拦截', async () => {
     const { getTabbarRedirectPath } = await setupStore(ADMIN_TAB_IS_HOME)
-    expect(getTabbarRedirectPath('/')).toBe('/pages/about/about')
+    expect(getTabbarRedirectPath('/')).toBe('/pages/promo/promo')
   })
 
   it('角色满足时放行', async () => {
     const { getTabbarRedirectPath } = await setupStore(ADMIN_TAB_IS_LAST, { roles: ['admin'] })
-    expect(getTabbarRedirectPath('/pages/about/about')).toBe('')
+    expect(getTabbarRedirectPath('/pages/promo/promo')).toBe('')
   })
 
   it('未配置 roles 的 tabbar 页放行', async () => {
     const { getTabbarRedirectPath } = await setupStore(ADMIN_TAB_IS_LAST)
-    expect(getTabbarRedirectPath('/pages/me/me')).toBe('')
+    expect(getTabbarRedirectPath('/pages/point/point')).toBe('')
   })
 
   it('非 tabbar 页面不参与判断，交给各自的登录/权限逻辑', async () => {
@@ -168,8 +168,8 @@ describe('getTabbarRedirectPath 运行时角色守卫', () => {
   })
 
   it('一个可见项都没有时不拦截，避免用户无处可去', async () => {
-    const { getTabbarRedirectPath } = await setupStore([item('关于', 'pages/about/about', ['admin'])])
-    expect(getTabbarRedirectPath('/pages/about/about')).toBe('')
+    const { getTabbarRedirectPath } = await setupStore([item('关于', 'pages/promo/promo', ['admin'])])
+    expect(getTabbarRedirectPath('/pages/promo/promo')).toBe('')
   })
 })
 
@@ -177,12 +177,12 @@ describe('isPageTabbar', () => {
   it('tabbar 页面（含 H5 的 "/"）返回 true', async () => {
     const { isPageTabbar } = await setupStore(ADMIN_TAB_IS_LAST)
     expect(isPageTabbar('/')).toBe(true)
-    expect(isPageTabbar('/pages/me/me')).toBe(true)
+    expect(isPageTabbar('/pages/point/point')).toBe(true)
   })
 
   it('受限页也返回 true：角色不足时不高亮，但仍要有导航入口', async () => {
     const { isPageTabbar } = await setupStore(ADMIN_TAB_IS_LAST)
-    expect(isPageTabbar('/pages/about/about')).toBe(true)
+    expect(isPageTabbar('/pages/promo/promo')).toBe(true)
   })
 
   it('非 tabbar 页面返回 false', async () => {
@@ -196,7 +196,7 @@ describe('守卫不会死循环', () => {
     const { getTabbarRedirectPath } = await setupStore(ADMIN_TAB_IS_HOME)
 
     const redirectPath = getTabbarRedirectPath('/')
-    expect(redirectPath).toBe('/pages/about/about')
+    expect(redirectPath).toBe('/pages/promo/promo')
     // 对回退目标再判断一次必须放行，否则 reLaunch / next() 会反复触发
     expect(getTabbarRedirectPath(redirectPath)).toBe('')
   })
@@ -204,8 +204,8 @@ describe('守卫不会死循环', () => {
   it('受限页与首页是同一个页面时，也不会自己重定向到自己', async () => {
     const { getTabbarRedirectPath } = await setupStore(ADMIN_TAB_IS_HOME)
 
-    const redirectPath = getTabbarRedirectPath('/pages/index/index')
-    expect(redirectPath).not.toBe('/pages/index/index')
+    const redirectPath = getTabbarRedirectPath('/pages/member/member')
+    expect(redirectPath).not.toBe('/pages/member/member')
     expect(getTabbarRedirectPath(redirectPath)).toBe('')
   })
 })

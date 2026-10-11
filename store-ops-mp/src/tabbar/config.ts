@@ -15,98 +15,35 @@ export const TABBAR_STRATEGY_MAP = {
   CUSTOM_TABBAR: 2,
 }
 
-// TODO: 1/3. 通过这里切换使用tabbar的策略
-// 如果是使用 NO_TABBAR(0)，nativeTabbarList 和 customTabbarList 都不生效
-// 如果是使用 NATIVE_TABBAR(1)，只需要配置 nativeTabbarList，customTabbarList 不生效
-// 如果是使用 CUSTOM_TABBAR(2)，只需要配置 customTabbarList，nativeTabbarList 不生效
-export const selectedTabbarStrategy = TABBAR_STRATEGY_MAP.CUSTOM_TABBAR
+// store-ops 使用微信原生 tabbar：C 端顾客页签固定（会员中心/积分中心），无需按角色动态变更
+export const selectedTabbarStrategy = TABBAR_STRATEGY_MAP.NATIVE_TABBAR
 
-// TODO: 2/3. 使用 NATIVE_TABBAR 时，更新下面的 tabbar 配置
-// 原生 tabbar 不支持运行时按角色动态变更；要按角色动态显示/隐藏，必须切换到自定义 tabbar
+// 原生 tabbar 配置：iconPath 可选，不配即纯文字（业务图标后补）
 export const nativeTabbarList: NativeTabBarItem[] = [
   {
-    iconPath: 'static/tabbar/home.png',
-    selectedIconPath: 'static/tabbar/homeHL.png',
-    pagePath: 'pages/index/index',
-    text: '首页',
+    pagePath: 'pages/member/member',
+    text: '会员中心',
   },
   {
-    iconPath: 'static/tabbar/personal.png',
-    selectedIconPath: 'static/tabbar/personalHL.png',
-    pagePath: 'pages/me/me',
-    text: '个人',
+    pagePath: 'pages/point/point',
+    text: '积分中心',
   },
 ]
 
-// TODO: 3/3. 使用 CUSTOM_TABBAR 时，更新下面的 tabbar 配置
-// 如果需要配置鼓包，需要在 'tabbar/store.ts' 里面设置，最后在 `tabbar/index.vue` 里面更改鼓包的图片
+// 自定义 tabbar 备用配置（当前未启用），页签与 nativeTabbarList 保持一致
 export const customTabbarList: CustomTabBarItem[] = [
   {
-    text: '首页',
-    pagePath: 'pages/index/index',
-    // 注意 unocss 图标需要如下处理：（二选一）
-    // 1）在fg-tabbar.vue页面上引入一下并注释掉（见tabbar/index.vue代码第2行）
-    // 2）配置到 unocss.config.ts 的 safelist 中
-    iconType: 'unocss',
-    icon: 'i-carbon-home',
-    // badge: 'dot',
-  },
-  // 鼓包配置示例（2025-12-31）
-  // 中间鼓包tabbarItem配置：通常是扫描按钮、发布按钮、更多按钮等，点击触发业务逻辑
-  // {
-  //   pagePath: 'pages/me/me',
-  //   text: '我的',
-  //   // 1）在fg-tabbar.vue页面上引入一下并注释掉（见tabbar/index.vue代码第2行）
-  //   // 2）配置到 unocss.config.ts 的 safelist 中
-  //   iconType: 'image',
-  //   icon: '/static/tabbar/scan.png',
-  //   isBulge: true,
-  // },
-  {
-    pagePath: 'pages/about/about',
-    text: '关于',
-    // 1）在fg-tabbar.vue页面上引入一下并注释掉（见tabbar/index.vue代码第2行）
-    // 2）配置到 unocss.config.ts 的 safelist 中
-    iconType: 'unocss',
-    icon: 'i-carbon-menu',
-    // badge: 10,
-    roles: ['admin'],
-  },
-  {
-    pagePath: 'pages/me/me',
-    text: '我的',
-    // 1）在fg-tabbar.vue页面上引入一下并注释掉（见tabbar/index.vue代码第2行）
-    // 2）配置到 unocss.config.ts 的 safelist 中
+    pagePath: 'pages/member/member',
+    text: '会员中心',
     iconType: 'unocss',
     icon: 'i-carbon-user',
-    // badge: 10,
   },
-
-  // 其他类型演示
-  // 1、uiLib
-  // {
-  //   pagePath: 'pages/index/index',
-  //   text: '首页',
-  //   iconType: 'uiLib',
-  //   icon: 'home',
-  // },
-  // 2、iconfont
-  // {
-  //   pagePath: 'pages/index/index',
-  //   text: '首页',
-  //   // 注意 iconfont 图标需要额外加上 'iconfont'，如下
-  //   iconType: 'iconfont',
-  //   icon: 'iconfont icon-my',
-  // },
-  // 3、image
-  // {
-  //   pagePath: 'pages/index/index',
-  //   text: '首页',
-  //   // 使用 ‘image’时，需要配置 icon + iconActive 2张图片
-  //   iconType: 'image',
-  //   icon: '/static/tabbar/home.png',
-  //   iconActive: '/static/tabbar/homeHL.png',
-  // },
+  {
+    pagePath: 'pages/point/point',
+    text: '积分中心',
+    iconType: 'unocss',
+    icon: 'i-carbon-star',
+  },
 ]
 
 /**
@@ -135,7 +72,8 @@ const _tabbar: TabBar = {
   // 只有微信小程序支持 custom。App 和 H5 不生效
   custom: selectedTabbarStrategy === TABBAR_STRATEGY_MAP.CUSTOM_TABBAR,
   color: '#999999',
-  selectedColor: '#018d71',
+  // store-ops 鲜橙主色
+  selectedColor: '#FF7A29',
   backgroundColor: '#F8F8F8',
   borderStyle: 'black',
   height: '50px',

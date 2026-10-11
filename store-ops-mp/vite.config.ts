@@ -90,6 +90,8 @@ export default defineConfig(({ command, mode }) => {
       }),
       UniPages({
         exclude: ['**/components/**/**.*', '**/sections/**/**.*'],
+        // 启动页 = 会员中心（tabbar 第一项）
+        homePage: 'pages/member/member',
         // pages 目录为 src/pages，分包目录不能配置在pages目录下！！
         // 是个数组，可以配置多个，但是不能为pages里面的目录！！
         // "src/pages-demo" 是unibest demo 预留的，方便后续插入demo示例

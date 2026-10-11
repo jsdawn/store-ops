@@ -11,11 +11,10 @@
 
 :root,
 page {
-  // 修改按主题色
-  // --wot-color-theme: #37c2bc;
-
-  // 修改按钮背景色
-  // --wot-button-primary-bg-color: green;
+  // store-ops 视觉基调：鲜橙主色（wot 组件与 unocss 的 primary 共用此变量）
+  --wot-color-theme: #ff7a29;
+  // 暖奶油底色，页面背景用法如 class="bg-cream"
+  --store-ops-cream: #fff6ec;
 }
 
 /*

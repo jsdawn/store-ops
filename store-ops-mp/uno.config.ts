@@ -93,8 +93,10 @@ export default defineConfig({
   ],
   theme: {
     colors: {
-      /** 主题色，用法如: text-primary */
-      primary: 'var(--wot-color-theme,#0957DE)',
+      /** 主题色，与 wot 组件共用 --wot-color-theme，用法如: text-primary */
+      primary: 'var(--wot-color-theme,#FF7A29)',
+      /** 暖奶油底色（store-ops 视觉基调），用法如: bg-cream */
+      cream: '#FFF6EC',
     },
     fontSize: {
       /** 提供更小号的字体，用法如：text-2xs */

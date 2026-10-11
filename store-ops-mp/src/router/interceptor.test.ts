@@ -18,24 +18,35 @@ async function invoke(url: string, userInfo?: { roles?: string[] }) {
   return navigateToInterceptor.invoke({ url })
 }
 
-// 用真实的 tabbar 配置跑：其中 'pages/about/about' 配了 roles: ['admin']
+// mock 一份 tabbar 配置：会员中心所有人可见，积分中心仅 admin 可见
 describe('navigateToInterceptor 角色守卫', () => {
+  beforeEach(() => {
+    vi.doMock('@/tabbar/config', () => ({
+      TABBAR_STRATEGY_MAP: { NO_TABBAR: 0, NATIVE_TABBAR: 1, CUSTOM_TABBAR: 2 },
+      selectedTabbarStrategy: 2,
+      tabbarList: [
+        { text: '会员中心', pagePath: 'pages/member/member', iconType: 'unocss', icon: 'i-carbon-user' },
+        { text: '积分中心', pagePath: 'pages/point/point', iconType: 'unocss', icon: 'i-carbon-star', roles: ['admin'] },
+      ],
+    }))
+  })
+
   it('角色不足时阻止进入受限 tabbar 页，并回退到可见的 tabbar 页', async () => {
-    const result = await invoke('/pages/about/about')
+    const result = await invoke('/pages/point/point')
 
     expect(result).toBe(false)
-    expect(uni.reLaunch).toHaveBeenCalledWith({ url: '/pages/index/index' })
+    expect(uni.reLaunch).toHaveBeenCalledWith({ url: '/pages/member/member' })
   })
 
   it('角色满足时放行', async () => {
-    const result = await invoke('/pages/about/about', { roles: ['admin'] })
+    const result = await invoke('/pages/point/point', { roles: ['admin'] })
 
     expect(result).not.toBe(false)
     expect(uni.reLaunch).not.toHaveBeenCalled()
   })
 
   it('未配置 roles 的 tabbar 页放行', async () => {
-    const result = await invoke('/pages/me/me')
+    const result = await invoke('/pages/member/member')
 
     expect(result).not.toBe(false)
     expect(uni.reLaunch).not.toHaveBeenCalled()
@@ -50,7 +61,7 @@ describe('navigateToInterceptor 角色守卫', () => {
 
   it('回退目标一定是当前用户可见的 tab，不会二次触发拦截', async () => {
     const { getTabbarRedirectPath } = await import('@/tabbar/store')
-    const redirectPath = getTabbarRedirectPath('/pages/about/about')
+    const redirectPath = getTabbarRedirectPath('/pages/point/point')
 
     expect(redirectPath).toBeTruthy()
     // 对回退目标再判断一次，返回 '' 说明放行，不存在 reLaunch 死循环
@@ -71,8 +82,8 @@ describe('navigateToInterceptor 首页就是受限页（issue #454 的核心场�
       TABBAR_STRATEGY_MAP: { NO_TABBAR: 0, NATIVE_TABBAR: 1, CUSTOM_TABBAR: 2 },
       selectedTabbarStrategy: 2,
       tabbarList: [
-        { text: '首页', pagePath: 'pages/index/index', iconType: 'unocss', icon: 'i-carbon-home', roles: ['admin'] },
-        { text: '我的', pagePath: 'pages/me/me', iconType: 'unocss', icon: 'i-carbon-user' },
+        { text: '首页', pagePath: 'pages/member/member', iconType: 'unocss', icon: 'i-carbon-home', roles: ['admin'] },
+        { text: '我的', pagePath: 'pages/point/point', iconType: 'unocss', icon: 'i-carbon-user' },
       ],
     }))
   })
@@ -82,14 +93,14 @@ describe('navigateToInterceptor 首页就是受限页（issue #454 的核心场�
     const result = await invoke('/')
 
     expect(result).toBe(false)
-    expect(uni.reLaunch).toHaveBeenCalledWith({ url: '/pages/me/me' })
+    expect(uni.reLaunch).toHaveBeenCalledWith({ url: '/pages/point/point' })
   })
 
   it('冷启动带上具体首页路径时同样被拦截', async () => {
-    const result = await invoke('/pages/index/index')
+    const result = await invoke('/pages/member/member')
 
     expect(result).toBe(false)
-    expect(uni.reLaunch).toHaveBeenCalledWith({ url: '/pages/me/me' })
+    expect(uni.reLaunch).toHaveBeenCalledWith({ url: '/pages/point/point' })
   })
 
   it('角色满足时冷启动放行', async () => {
