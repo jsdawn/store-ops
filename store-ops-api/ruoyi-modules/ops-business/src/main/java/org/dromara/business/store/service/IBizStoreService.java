@@ -7,7 +7,9 @@ import org.dromara.system.api.domain.vo.RemoteDeptVo;
 import org.dromara.common.mybatis.core.page.PageQuery;
 import org.dromara.common.mybatis.core.page.TableDataInfo;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 门店 服务接口
@@ -89,5 +91,21 @@ public interface IBizStoreService {
      * @return 小程序码信息
      */
     BizStoreQrcodeVo queryQrcode(Long storeId);
+
+    /**
+     * 批量查门店名称映射（member/order 域列表补齐 storeName，停用门店也返回）
+     *
+     * @param storeIds 门店ID集合
+     * @return key=storeId, value=storeName
+     */
+    Map<Long, String> selectStoreNameMap(Collection<Long> storeIds);
+
+    /**
+     * 查门店在租户内的创建顺序序号（1-based，会员卡号「门店序号」段，详设 T4）
+     *
+     * @param storeId 门店ID
+     * @return 序号（按 create_time, store_id 升序，从 1 开始）
+     */
+    Integer selectStoreSeq(Long storeId);
 
 }

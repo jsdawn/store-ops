@@ -79,6 +79,12 @@
             <artifactId>ruoyi-api-system</artifactId>
         </dependency>
 
+        <!-- RuoYi Api Ops（mp 鉴权常量、会员远程接口） -->
+        <dependency>
+            <groupId>org.dromara</groupId>
+            <artifactId>ruoyi-api-ops</artifactId>
+        </dependency>
+
     </dependencies>
 
     <build>

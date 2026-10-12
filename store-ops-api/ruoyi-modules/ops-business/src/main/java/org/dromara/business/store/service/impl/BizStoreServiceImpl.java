@@ -24,7 +24,10 @@ import org.dromara.system.api.domain.vo.RemoteDeptVo;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -189,6 +192,44 @@ public class BizStoreServiceImpl implements IBizStoreService {
         vo.setImageUrl(null);
         vo.setTip("小程序码随小程序端实装后生成（scene=store_id），当前为占位返回");
         return vo;
+    }
+
+    /**
+     * 批量查门店名称映射（member/order 域列表补齐 storeName，停用门店也返回）
+     */
+    @Override
+    public Map<Long, String> selectStoreNameMap(Collection<Long> storeIds) {
+        if (CollUtil.isEmpty(storeIds)) {
+            return Collections.emptyMap();
+        }
+        return baseMapper.selectVoList(new LambdaQueryWrapper<BizStore>()
+                .select(BizStore::getStoreId, BizStore::getStoreName)
+                .in(BizStore::getStoreId, storeIds))
+            .stream()
+            .collect(Collectors.toMap(BizStoreVo::getStoreId, BizStoreVo::getStoreName));
+    }
+
+    /**
+     * 查门店在租户内的创建顺序序号（1-based，会员卡号「门店序号」段）
+     *
+     * <p>以（create_time, store_id）升序定位本店下标；同租户内唯一，历史排序稳定。</p>
+     */
+    @Override
+    public Integer selectStoreSeq(Long storeId) {
+        BizStoreVo store = queryStoreById(storeId);
+        if (store == null) {
+            return null;
+        }
+        List<BizStore> stores = baseMapper.selectList(new LambdaQueryWrapper<BizStore>()
+            .select(BizStore::getStoreId)
+            .orderByAsc(BizStore::getCreateTime)
+            .orderByAsc(BizStore::getStoreId));
+        for (int i = 0; i < stores.size(); i++) {
+            if (storeId.equals(stores.get(i).getStoreId())) {
+                return i + 1;
+            }
+        }
+        return null;
     }
 
     /**
