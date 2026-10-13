@@ -54,6 +54,8 @@ const httpInterceptor = {
 
     if (token) {
       options.header.Authorization = `Bearer ${token}`
+      // mp 端顾客鉴权：ops-business MpTokenInterceptor 按 Mp-Token 头取不透明 token
+      options.header['Mp-Token'] = token
     }
     return options
   },

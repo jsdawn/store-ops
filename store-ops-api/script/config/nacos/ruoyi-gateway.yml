@@ -6,11 +6,13 @@ security:
       - /auth/code
       - /auth/logout
       - /auth/login
+      - /auth/mp/login
       - /auth/binding/*
       - /auth/register
       - /auth/tenant/list
       - /resource/sms/code
       - /resource/sse/close
+      - /mp/**
       - /*/v3/api-docs
       - /*/error
       - /csrf

@@ -101,3 +101,13 @@ justauth:
       client-id: 10**********6
       client-secret: 1f7d08**********5b7**********29e
       redirect-uri: ${justauth.address}/social-callback?source=gitea
+
+# 微信小程序（mp 顾客登录 code2session，详设 4.5）
+# app-id 非敏感可入库；secret 敏感不入库——仅在 Nacos dev/prod 命名空间维护真实值
+# 联调期可用 mock-enabled=true 跳过微信接口（固定注入 mock-open-id，详设 T5）
+wx:
+  mp:
+    mock-enabled: false
+    mock-open-id: mock-caihua-001
+    app-id: 'wx4064173e76bacd9a'
+    secret: ''
