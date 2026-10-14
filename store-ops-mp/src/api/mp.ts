@@ -17,6 +17,8 @@ export interface IMpMember {
   memberId: string
   storeId: string
   memberNo: string
+  /** 微信open_id（/member/me 回带，供编辑页自查补齐会话态） */
+  openId?: string
   mobile?: string
   nickName?: string
   avatar?: string
@@ -47,6 +49,15 @@ export interface IMpLoginRes extends Partial<IMpSession> {
 export function mpLogin(data: { code: string, storeId: string }) {
   // 实际请求：{authBase}/auth/mp/login（网关 /auth/** → ruoyi-auth），不能带业务前缀 /mp
   return http.post<IMpLoginRes>(`${authBase}/auth/mp/login`, data)
+}
+
+/**
+ * 手机号快速验证 code 解码：open-type="getPhoneNumber" 回调 code → 真实手机号
+ * 路径说明同 mpLogin：走 /auth/** 路由（→ ruoyi-auth），相对网关根拼接
+ * @param data getPhoneNumber 回调的 code（5 分钟有效、单次使用）
+ */
+export function decodePhone(data: { code: string }) {
+  return http.post<{ phone: string }>(`${authBase}/auth/mp/phone`, data)
 }
 
 /**

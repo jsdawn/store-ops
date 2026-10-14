@@ -33,6 +33,11 @@ public class MpMemberVo implements Serializable {
     private String memberNo;
 
     /**
+     * 微信open_id（mp 端自查档案补齐会话态，bind-mobile 需要）
+     */
+    private String openId;
+
+    /**
      * 手机号
      */
     private String mobile;

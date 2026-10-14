@@ -7,6 +7,7 @@ security:
       - /auth/logout
       - /auth/login
       - /auth/mp/login
+      - /auth/mp/phone
       - /auth/binding/*
       - /auth/register
       - /auth/tenant/list

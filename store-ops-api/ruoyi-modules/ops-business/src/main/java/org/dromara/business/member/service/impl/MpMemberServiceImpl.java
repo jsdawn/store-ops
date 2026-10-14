@@ -82,15 +82,21 @@ public class MpMemberServiceImpl implements IMpMemberService {
     }
 
     /**
-     * 按（门店, 手机号）匹配档案：已有 → 补绑/覆盖 open_id（E5 唯一索引冲突兜底）；无 → 新建
+     * 按（门店, 手机号）匹配档案：已有 → 补绑/覆盖 open_id、更新昵称（编辑资料场景
+     * open_id 相同也允许昵称变更）；无 → 新建
      */
     private BizMember bindOrRegister(BizStore store, MpBindMobileBo bo) {
         BizMember exist = baseMapper.selectOne(new LambdaQueryWrapper<BizMember>()
             .eq(BizMember::getStoreId, store.getStoreId())
             .eq(BizMember::getMobile, bo.getMobile()));
         if (exist != null) {
-            if (!StringUtils.equals(exist.getOpenId(), bo.getOpenId())) {
-                exist.setOpenId(bo.getOpenId());
+            boolean openIdChanged = !StringUtils.equals(exist.getOpenId(), bo.getOpenId());
+            boolean nickChanged = StringUtils.isNotBlank(bo.getNickName())
+                && !StringUtils.equals(exist.getNickName(), bo.getNickName());
+            if (openIdChanged || nickChanged) {
+                if (openIdChanged) {
+                    exist.setOpenId(bo.getOpenId());
+                }
                 if (StringUtils.isNotBlank(bo.getNickName())) {
                     exist.setNickName(bo.getNickName());
                 }
@@ -164,6 +170,7 @@ public class MpMemberServiceImpl implements IMpMemberService {
         vo.setMemberId(member.getMemberId());
         vo.setStoreId(member.getStoreId());
         vo.setMemberNo(member.getMemberNo());
+        vo.setOpenId(member.getOpenId());
         vo.setMobile(member.getMobile());
         vo.setNickName(member.getNickName());
         vo.setAvatar(member.getAvatar());

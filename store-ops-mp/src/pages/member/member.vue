@@ -14,7 +14,7 @@ const tokenStore = useTokenStore()
 
 onLoad((query) => {
   // 扫码进入：scene 携带门店ID（兼容 s=/s_id=/store_id=/纯数字）
-  const sid = parseStoreId(query?.scene ?? query?.storeId)
+  const sid = parseStoreId(query?.scene)
   if (sid)
     mpStore.setStore(sid)
 })
@@ -42,6 +42,11 @@ async function fetchMe() {
     // 业务错误已由请求层 toast
   }
 }
+
+/** 点击会员名称 → 编辑页（页面内自查档案回填，手机号锁定） */
+function goEditProfile() {
+  uni.navigateTo({ url: '/pages/profile/setup?mode=edit' })
+}
 </script>
 
 <template>
@@ -55,8 +60,13 @@ async function fetchMe() {
     <view v-else-if="mpStore.member" class="mt-4">
       <view class="rounded-2xl bg-primary p-6 text-white">
         <text class="text-sm opacity-80">{{ mpStore.member.storeName || '会员中心' }}</text>
-        <view class="mt-2 text-xl font-bold">
-          {{ mpStore.member.nickName || '会员' }}
+        <view
+          class="mt-2 flex items-center text-xl font-bold"
+          hover-class="opacity-80"
+          @click="goEditProfile"
+        >
+          <text>{{ mpStore.member.nickName || '会员' }}</text>
+          <text class="ml-1 text-sm opacity-60">›</text>
         </view>
         <text class="mt-1 text-xs opacity-80">卡号 {{ mpStore.member.memberNo || '-' }}</text>
       </view>

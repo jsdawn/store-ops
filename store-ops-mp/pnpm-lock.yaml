@@ -232,6 +232,9 @@ importers:
       postcss-scss:
         specifier: ^4.0.9
         version: 4.0.9(postcss@8.5.6)
+      prettier:
+        specifier: ^3.9.10
+        version: 3.9.10
       rollup-plugin-visualizer:
         specifier: ^6.0.3
         version: 6.0.3(rollup@4.50.0)
@@ -8125,8 +8128,8 @@ packages:
     engines: {node: '>=10.13.0'}
     hasBin: true
 
-  prettier@3.6.2:
-    resolution: {integrity: sha512-I7AIg5boAr5R0FFtJ6rCfD+LFsWHp81dolrFD8S79U9tb8Az2nGrJncnMSnys+bpQJfRUzqs9hnA81OAA3hCuQ==}
+  prettier@3.9.10:
+    resolution: {integrity: sha512-skGHTH1Yb9QvaTC4hWnRTzEYtCpApF0UMBPz+t/0ZPzP8ihefo/btKd+QA7pUE0fEwA1SbS/NmhyEcstdXOIdA==}
     engines: {node: '>=14'}
     hasBin: true
 
@@ -13956,10 +13959,10 @@ snapshots:
 
   '@polka/url@1.0.0-next.29': {}
 
-  '@prettier/sync@0.6.1(prettier@3.6.2)':
+  '@prettier/sync@0.6.1(prettier@3.9.10)':
     dependencies:
       make-synchronized: 0.8.0
-      prettier: 3.6.2
+      prettier: 3.9.10
 
   '@protobufjs/aspromise@1.1.2': {}
 
@@ -14141,7 +14144,7 @@ snapshots:
 
   '@tootallnate/once@1.1.2': {}
 
-  '@trivago/prettier-plugin-sort-imports@5.2.2(@vue/compiler-sfc@3.5.22)(prettier@3.6.2)':
+  '@trivago/prettier-plugin-sort-imports@5.2.2(@vue/compiler-sfc@3.5.22)(prettier@3.9.10)':
     dependencies:
       '@babel/generator': 7.29.0
       '@babel/parser': 7.28.4
@@ -14149,7 +14152,7 @@ snapshots:
       '@babel/types': 7.29.0
       javascript-natural-sort: 0.7.1
       lodash: 4.17.21
-      prettier: 3.6.2
+      prettier: 3.9.10
     optionalDependencies:
       '@vue/compiler-sfc': 3.5.22
     transitivePeerDependencies:
@@ -17112,7 +17115,7 @@ snapshots:
       eslint: 9.34.0(jiti@2.6.1)
       eslint-formatting-reporter: 0.0.0(eslint@9.34.0(jiti@2.6.1))
       eslint-parser-plain: 0.1.1
-      prettier: 3.6.2
+      prettier: 3.9.10
       synckit: 0.9.3
 
   eslint-plugin-import-lite@0.3.0(eslint@9.34.0(jiti@2.6.1))(typescript@5.8.3):
@@ -19992,8 +19995,8 @@ snapshots:
   openapi-ts-request@1.10.0(@types/node@20.19.11)(@vue/compiler-sfc@3.5.22)(chokidar@3.6.0)(typescript@5.8.3):
     dependencies:
       '@clack/prompts': 0.11.0
-      '@prettier/sync': 0.6.1(prettier@3.6.2)
-      '@trivago/prettier-plugin-sort-imports': 5.2.2(@vue/compiler-sfc@3.5.22)(prettier@3.6.2)
+      '@prettier/sync': 0.6.1(prettier@3.9.10)
+      '@trivago/prettier-plugin-sort-imports': 5.2.2(@vue/compiler-sfc@3.5.22)(prettier@3.9.10)
       axios: 1.11.0
       bing-translate-api: 4.1.0
       chalk: 4.1.2
@@ -20007,7 +20010,7 @@ snapshots:
       minimatch: 9.0.5
       mockjs: 1.1.0
       nunjucks: 3.2.4(chokidar@3.6.0)
-      prettier: 3.6.2
+      prettier: 3.9.10
       reserved-words: 0.1.2
       rimraf: 5.0.10
       swagger2openapi: 7.0.8
@@ -20535,7 +20538,7 @@ snapshots:
 
   prettier@2.8.8: {}
 
-  prettier@3.6.2: {}
+  prettier@3.9.10: {}
 
   pretty-format@27.5.1:
     dependencies:

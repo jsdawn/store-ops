@@ -45,6 +45,21 @@ public class MpLoginService {
      */
     private static final String WX_JSCODE2SESSION_URL = "https://api.weixin.qq.com/sns/jscode2session";
 
+    /**
+     * 微信 stable_token 接口地址（免配额抖动，官方推荐替代 /cgi-bin/token）
+     */
+    private static final String WX_STABLE_TOKEN_URL = "https://api.weixin.qq.com/cgi-bin/stable_token";
+
+    /**
+     * 微信手机号快速验证解码接口地址（拼 access_token）
+     */
+    private static final String WX_PHONE_URL = "https://api.weixin.qq.com/wxa/business/getuserphonenumber?access_token=";
+
+    /**
+     * 小程序接口调用凭据 Redis 缓存 key 前缀（按 appid 隔离）
+     */
+    private static final String MP_ACCESS_TOKEN_KEY = "global:mp:wx:access_token:";
+
     private final WxMpProperties wxMpProperties;
 
     @DubboReference
@@ -108,6 +123,60 @@ public class MpLoginService {
             throw new ServiceException("微信登录失败：" + json.getStr("errmsg", "未知错误"));
         }
         return json.getStr("openid");
+    }
+
+    /**
+     * 解析手机号：mock 开启时返回固定手机号（T5 联调依赖），
+     * 否则用手机号快速验证 code 调 getuserphonenumber 换真实手机号
+     *
+     * @param phoneCode open-type="getPhoneNumber" 回调下发的 code（5 分钟有效、单次使用）
+     * @return 不含区号的手机号（purePhoneNumber）
+     */
+    public String resolvePhone(String phoneCode) {
+        if (wxMpProperties.isMockEnabled()) {
+            log.info("mp 手机号解码 mock 模式：返回固定手机号");
+            return wxMpProperties.getMockPhone();
+        }
+        if (StringUtils.isBlank(wxMpProperties.getAppId()) || StringUtils.isBlank(wxMpProperties.getSecret())) {
+            throw new ServiceException("小程序 appid/secret 未配置");
+        }
+        String resp = HttpUtil.post(WX_PHONE_URL + getAccessToken(),
+            JSONUtil.createObj().set("code", phoneCode).toString(), 5000);
+        JSONObject json = JSONUtil.parseObj(resp);
+        if (json.getInt("errcode", 0) != 0) {
+            log.warn("getuserphonenumber 失败：{}", resp);
+            throw new ServiceException("微信手机号获取失败：" + json.getStr("errmsg", "未知错误"));
+        }
+        String phone = json.getJSONObject("phone_info").getStr("purePhoneNumber");
+        if (StringUtils.isBlank(phone)) {
+            throw new ServiceException("微信未返回手机号");
+        }
+        return phone;
+    }
+
+    /**
+     * 获取小程序接口调用凭据 access_token：Redis 缓存优先（提前 200s 过期防边界失效），
+     * 未命中走 stable_token（client_credential），写入缓存后返回
+     */
+    private String getAccessToken() {
+        String key = MP_ACCESS_TOKEN_KEY + wxMpProperties.getAppId();
+        String cached = RedisUtils.getCacheObject(key);
+        if (StringUtils.isNotBlank(cached)) {
+            return cached;
+        }
+        String resp = HttpUtil.post(WX_STABLE_TOKEN_URL, JSONUtil.createObj()
+            .set("grant_type", "client_credential")
+            .set("appid", wxMpProperties.getAppId())
+            .set("secret", wxMpProperties.getSecret()).toString(), 5000);
+        JSONObject json = JSONUtil.parseObj(resp);
+        String accessToken = json.getStr("access_token");
+        if (StringUtils.isBlank(accessToken)) {
+            log.warn("stable_token 获取失败：{}", resp);
+            throw new ServiceException("微信凭据获取失败：" + json.getStr("errmsg", "未知错误"));
+        }
+        Long expiresIn = json.getLong("expires_in", 7200L);
+        RedisUtils.setCacheObject(key, accessToken, Duration.ofSeconds(Math.max(expiresIn - 200, 60)));
+        return accessToken;
     }
 
     /**

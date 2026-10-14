@@ -1,0 +1,61 @@
+/**
+ * 全局基础样式（微信小程序兼容 reset）
+ *
+ * 小程序不支持 * 通配选择器，按内置组件逐个枚举；
+ * 只做原生化归零，不带业务色值/间距，不影响具体布局：
+ * 1. box-sizing: border-box —— padding/border 不再撑破宽度
+ * 2. image 块级化 —— 消除行内基线底部空隙
+ * 3. button 原生化 —— 清除微信默认灰底/圆角/::after 边框，
+ *    实际按钮均由业务类（如 fg-gradient-btn）或 wot 组件类提供样式，
+ *    类选择器优先级高于此处标签选择器，不会被覆盖
+ */
+
+view,
+text,
+image,
+button,
+input,
+textarea,
+scroll-view,
+swiper,
+swiper-item,
+movable-view,
+cover-view,
+cover-image,
+navigator,
+label,
+form,
+picker,
+picker-view,
+picker-view-column,
+radio,
+radio-group,
+checkbox,
+checkbox-group,
+slider,
+switch,
+progress,
+rich-text,
+video,
+canvas,
+map,
+web-view {
+  box-sizing: border-box;
+}
+
+image {
+  display: block;
+}
+
+button {
+  margin: 0;
+  padding: 0;
+  background-color: transparent;
+  border-radius: 0;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+button::after {
+  border: none;
+}

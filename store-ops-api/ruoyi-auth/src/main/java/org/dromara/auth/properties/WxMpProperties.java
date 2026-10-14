@@ -28,6 +28,11 @@ public class WxMpProperties {
     private String mockOpenId = "mock-open-id-001";
 
     /**
+     * mock 固定手机号（手机号快速验证 code 解码 mock，配合真实主体上线前联调）
+     */
+    private String mockPhone = "13800138000";
+
+    /**
      * 小程序 appid
      */
     private String appId;
