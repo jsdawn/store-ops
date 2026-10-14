@@ -77,6 +77,36 @@ export function bindMobile(data: {
 }
 
 /**
+ * mp 端门店摘要（我的门店列表行，对应后端 MpStoreBriefVo）
+ * storeId 雪花以字符串承接（同 IMpMember 约定）
+ */
+export interface IMpStoreBrief {
+  storeId: string
+  storeName: string
+  memberNo: string
+  balance?: number
+  pointBalance?: number
+  /** 是否当前门店 */
+  current?: boolean
+}
+
+/**
+ * 我的门店列表：open_id/手机号跨租户查已注册（营业中）门店（切换门店弹层数据源）
+ * 路径说明同 bind-mobile：baseURL 已含 /mp，相对路径不重复带前缀
+ */
+export function getMyStores() {
+  return http.get<IMpStoreBrief[]>('/member/stores')
+}
+
+/**
+ * 切换门店：后端按目标店档案重签 token（token 绑定档案ID）
+ * @param storeId 目标门店ID（须为已注册会员的门店）
+ */
+export function switchStore(storeId: string) {
+  return http.post<IMpSession>('/member/switch-store', { storeId })
+}
+
+/**
  * 当前店资产：卡号、昵称、余额、积分、门店名（header Mp-Token 鉴权）
  * 路径说明同 bind-mobile：baseURL 已含 /mp，相对路径不重复带前缀
  * @param storeId 当前店ID（显式携带，后端做归属比对）

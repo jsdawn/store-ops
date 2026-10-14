@@ -1,8 +1,9 @@
 <script lang="ts" setup>
-import { getMe } from '@/api/mp'
+import { getMe, getMyStores, switchStore } from '@/api/mp'
 import { useMpStore, useTokenStore } from '@/store'
 import { parseStoreId } from '@/utils/scene'
 import MemberMenuRow from './components/member-menu-row.vue'
+import StorePicker from './components/store-picker.vue'
 
 definePage({
   style: {
@@ -14,24 +15,81 @@ definePage({
 const mpStore = useMpStore()
 const tokenStore = useTokenStore()
 
+/** 扫码进店的目标门店（onLoad 暂存，onShow 消费一次；切店中防重入） */
+const pendingStoreId = ref<string>()
+const switchingStore = ref(false)
+
 onLoad((query) => {
-  // 扫码进入：scene 携带门店ID（兼容 s=/s_id=/store_id=/纯数字）
-  const sid = parseStoreId(query?.scene ?? query?.storeId)
-  if (sid)
-    mpStore.setStore(sid)
+  // 扫码进入：scene 携带门店ID（兼容 s=/s_id=/store_id=/纯数字）。
+  // 只暂存不写 store：是否切店由 onShow 按会话归属决定，避免 fetchMe 打到错店
+  pendingStoreId.value = parseStoreId(query?.scene ?? query?.storeId)
 })
 
 onShow(() => {
-  // 未扫码进入：展示引导文案，不做跳转
-  if (!mpStore.storeId)
+  const sid = pendingStoreId.value
+  pendingStoreId.value = undefined
+  // 未扫码且无门店上下文：展示引导文案，不做跳转
+  if (!mpStore.storeId && !sid)
     return
-  // 未登录（或会话不完整）：去登录页（登录前无返回入口）
+  // 未登录（或会话不完整）：带扫码店去登录页，登录后 bind-mobile 落在扫码店
   if (!tokenStore.hasLogin || !mpStore.hasSession) {
+    mpStore.setStore(sid || mpStore.storeId)
     uni.redirectTo({ url: '/pages/login/index' })
     return
   }
+  // 扫码店非当前会话门店：自动切店（未注册则转登录，见 enterStore）
+  if (sid && sid !== mpStore.member?.storeId) {
+    enterStore(sid)
+    return
+  }
+  if (sid)
+    mpStore.setStore(sid)
   fetchMe()
 })
+
+/**
+ * 扫码进店：已在目标店注册 → 自动切换（switch-store 重签 token）；
+ * 未注册 → 清本地会话重新登录（登录后 bind-mobile 在扫码店建档）。
+ * 切店失败（如门店暂停营业）时留在当前店正常展示。
+ */
+async function enterStore(sid: string) {
+  if (switchingStore.value)
+    return
+  switchingStore.value = true
+  uni.showLoading({ title: '正在切换门店', mask: true })
+  try {
+    const stores = await getMyStores()
+    const target = stores.find(s => s.storeId === sid)
+    if (target && !target.current) {
+      const res = await switchStore(sid)
+      tokenStore.setTokenInfo({ token: res.token, expiresIn: res.expiresIn ?? 0 })
+      mpStore.setSession(res.member)
+      mpStore.setStore(res.member.storeId)
+      uni.hideLoading()
+      uni.showToast({ title: `已切换到 ${res.member.storeName}`, icon: 'none' })
+    }
+    else if (target?.current) {
+      uni.hideLoading()
+      mpStore.setStore(sid)
+      fetchMe()
+    }
+    else {
+      uni.hideLoading()
+      tokenStore.setTokenInfo({ token: '', expiresIn: 0 })
+      mpStore.clearSession()
+      mpStore.setStore(sid)
+      uni.showToast({ title: '该门店尚未注册会员，请重新登录', icon: 'none' })
+      uni.redirectTo({ url: `/pages/login/index?scene=${sid}` })
+    }
+  }
+  catch {
+    uni.hideLoading()
+    fetchMe()
+  }
+  finally {
+    switchingStore.value = false
+  }
+}
 
 async function fetchMe() {
   if (!mpStore.storeId)
@@ -49,6 +107,9 @@ async function fetchMe() {
 function goEditProfile() {
   uni.navigateTo({ url: '/pages/profile/setup?mode=edit' })
 }
+
+/** 切换门店弹层（Hero 切换胶囊 / 服务列表「切换门店」行共用入口） */
+const showStorePicker = ref(false)
 
 // ---- 展示态（无接口的数据先静态占位，接口就绪后替换） ----
 const member = computed(() => mpStore.member)
@@ -90,7 +151,12 @@ const memberNoText = computed(() => member.value?.memberNo || '-')
           <text class="block truncate text-[30rpx] text-white font-medium">{{ storeName }}</text>
           <text class="mt-[4rpx] block truncate text-[20rpx] text-white/85">{{ storeSubtitle }}</text>
         </view>
-        <view class="h-[52rpx] flex shrink-0 items-center gap-[6rpx] rounded-full bg-white/20 px-[22rpx]" hover-class="bg-white/30" :hover-stay-time="60">
+        <view
+          class="h-[52rpx] flex shrink-0 items-center gap-[6rpx] rounded-full bg-white/20 px-[22rpx]"
+          hover-class="bg-white/30"
+          :hover-stay-time="60"
+          @click="showStorePicker = true"
+        >
           <text class="text-[22rpx] text-white">切换</text>
           <view class="i-my-icons-chevron-right text-[20rpx] text-white" />
         </view>
@@ -187,6 +253,7 @@ const memberNoText = computed(() => member.value?.memberNo || '-')
           icon-color="#ff7a29"
           title="切换门店"
           :subtitle="`当前：${storeName} · 底部弹出选择`"
+          @click="showStorePicker = true"
         />
       </view>
 
@@ -206,5 +273,8 @@ const memberNoText = computed(() => member.value?.memberNo || '-')
         工作台入口仅限定员工身份的会员可见 · 门店列表仅展示已注册门店
       </text>
     </view>
+
+    <!-- 切换门店底部弹层（选中后重签 token 写回会话，资产区 computed 自动刷新） -->
+    <StorePicker v-model="showStorePicker" />
   </view>
 </template>

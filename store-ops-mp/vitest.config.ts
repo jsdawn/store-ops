@@ -18,7 +18,14 @@ function stripPagesJsonComments() {
       if (!id.endsWith('pages.json')) {
         return
       }
-      return { code: JSON.stringify(parseJson(code, true, 'pages.json')), map: null }
+      // 生成物带条件编译注释（如 // #ifdef H5 || MP-WEIXIN），parseJson 会按
+      // UNI_PLATFORM 过滤平台块：vitest 无平台变量且生成物平台值大小写不规范，
+      // home 块会被误删导致 HOME_PAGE 回退。测试与平台无关，先删条件注释行保留全部页面
+      const noPlatformBlocks = code
+        .split('\n')
+        .filter(line => !/^\s*\/\/\s*#(?:ifdef|ifndef|endif)/.test(line))
+        .join('\n')
+      return { code: JSON.stringify(parseJson(noPlatformBlocks, true, 'pages.json')), map: null }
     },
   }
 }

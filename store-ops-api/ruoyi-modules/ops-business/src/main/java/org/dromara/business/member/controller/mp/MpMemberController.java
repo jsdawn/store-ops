@@ -3,8 +3,10 @@ package org.dromara.business.member.controller.mp;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import org.dromara.business.member.domain.bo.MpBindMobileBo;
+import org.dromara.business.member.domain.bo.MpSwitchStoreBo;
 import org.dromara.business.member.domain.vo.MpLoginVo;
 import org.dromara.business.member.domain.vo.MpMemberVo;
+import org.dromara.business.member.domain.vo.MpStoreBriefVo;
 import org.dromara.business.member.service.IMpMemberService;
 import org.dromara.business.config.MpTokenInterceptor;
 import org.dromara.common.core.domain.R;
@@ -17,6 +19,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 /**
  * mp 端会员接口（顾客微信端，网关不剥前缀，详设 4.3）
@@ -55,6 +59,30 @@ public class MpMemberController extends BaseController {
     public R<MpMemberVo> me(@NotNull(message = "门店ID不能为空") @RequestParam Long storeId,
                             @RequestAttribute(MpTokenInterceptor.MP_MEMBER_ID_ATTR) Long memberId) {
         return R.ok(mpMemberService.queryMember(memberId, storeId));
+    }
+
+    /**
+     * 我的门店列表：open_id/手机号跨租户查已注册（营业中）门店，带资产摘要（切换门店弹层）
+     *
+     * @param memberId token 换出
+     * @return 门店摘要列表（当前店置顶并标记 current）
+     */
+    @GetMapping("/stores")
+    public R<List<MpStoreBriefVo>> stores(@RequestAttribute(MpTokenInterceptor.MP_MEMBER_ID_ATTR) Long memberId) {
+        return R.ok(mpMemberService.listStores(memberId));
+    }
+
+    /**
+     * 切换门店：按目标店档案重签 mp token（token 绑定档案ID，切店必须换签）
+     *
+     * @param bo       目标门店ID
+     * @param memberId token 换出
+     * @return 新店 token + 会员信息
+     */
+    @PostMapping("/switch-store")
+    public R<MpLoginVo> switchStore(@Validated @RequestBody MpSwitchStoreBo bo,
+                                    @RequestAttribute(MpTokenInterceptor.MP_MEMBER_ID_ATTR) Long memberId) {
+        return R.ok(mpMemberService.switchStore(memberId, bo.getStoreId()));
     }
 
 }

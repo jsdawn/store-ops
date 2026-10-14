@@ -8,8 +8,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.dromara.business.member.constant.OpsMemberConstants;
 import org.dromara.business.member.domain.BizMember;
 import org.dromara.business.member.domain.bo.MpBindMobileBo;
+import org.dromara.business.member.domain.bo.MpSwitchStoreBo;
 import org.dromara.business.member.domain.vo.MpLoginVo;
 import org.dromara.business.member.domain.vo.MpMemberVo;
+import org.dromara.business.member.domain.vo.MpStoreBriefVo;
 import org.dromara.business.member.mapper.BizMemberMapper;
 import org.dromara.business.member.service.IMpMemberService;
 import org.dromara.business.store.domain.BizStore;
@@ -27,8 +29,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
-import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * mp 端会员服务实现（顾客微信端）
@@ -79,6 +84,93 @@ public class MpMemberServiceImpl implements IMpMemberService {
         }
         BizStore store = TenantHelper.ignore(() -> storeMapper.selectById(member.getStoreId()));
         return toVo(member, store == null ? null : store.getStoreName());
+    }
+
+    @Override
+    public List<MpStoreBriefVo> listStores(Long memberId) {
+        BizMember me = TenantHelper.ignore(() -> baseMapper.selectById(memberId));
+        if (me == null) {
+            throw new ServiceException("会员不存在");
+        }
+        List<BizMember> members = TenantHelper.ignore(() ->
+            baseMapper.selectList(ownedMemberWrapper(me)));
+        List<Long> storeIds = members.stream().map(BizMember::getStoreId).distinct().toList();
+        if (storeIds.isEmpty()) {
+            return List.of();
+        }
+        // 跨租户取门店，仅保留营业中（切换门店只列已注册且营业的门店，设计稿脚注约定）
+        Map<Long, BizStore> stores = TenantHelper.ignore(() ->
+            storeMapper.selectList(new LambdaQueryWrapper<BizStore>().in(BizStore::getStoreId, storeIds)))
+            .stream()
+            .filter(s -> SystemConstants.NORMAL.equals(s.getStatus()))
+            .collect(Collectors.toMap(BizStore::getStoreId, Function.identity()));
+        return members.stream()
+            .filter(m -> stores.containsKey(m.getStoreId()))
+            .map(m -> {
+                MpStoreBriefVo vo = new MpStoreBriefVo();
+                vo.setStoreId(m.getStoreId());
+                vo.setStoreName(stores.get(m.getStoreId()).getStoreName());
+                vo.setMemberNo(m.getMemberNo());
+                vo.setBalance(m.getBalance());
+                vo.setPointBalance(m.getPointBalance());
+                vo.setCurrent(m.getMemberId().equals(memberId));
+                return vo;
+            })
+            // 当前店置顶
+            .sorted(Comparator.comparing(v -> !Boolean.TRUE.equals(v.getCurrent())))
+            .toList();
+    }
+
+    @Override
+    public MpLoginVo switchStore(Long memberId, Long targetStoreId) {
+        BizMember me = TenantHelper.ignore(() -> baseMapper.selectById(memberId));
+        if (me == null) {
+            throw new ServiceException("会员不存在");
+        }
+        BizStore store = TenantHelper.ignore(() -> storeMapper.selectById(targetStoreId));
+        if (store == null) {
+            throw new ServiceException("门店不存在");
+        }
+        if (!SystemConstants.NORMAL.equals(store.getStatus())) {
+            throw new ServiceException("门店暂停营业，暂不可切换");
+        }
+        BizMember target = TenantHelper.dynamic(store.getTenantId(), () ->
+            baseMapper.selectOne(ownedMemberWrapper(me).eq(BizMember::getStoreId, targetStoreId).last("LIMIT 1")));
+        if (target == null) {
+            throw new ServiceException("该门店尚未建立会员档案");
+        }
+        // token 绑定档案ID：切店 = 按目标店档案重签（mp token 换出 memberId 的契约不变）
+        String token = issueToken(target.getMemberId());
+        MpLoginVo vo = new MpLoginVo();
+        vo.setToken(token);
+        vo.setExpiresIn(OpsMpConstants.MP_TOKEN_TTL_DAYS * 24 * 3600);
+        vo.setMember(toVo(target, store.getStoreName()));
+        return vo;
+    }
+
+    /**
+     * 「属于我」的档案查询口径（切店两接口共用）：open_id 命中；
+     * 或手工建档（open_id 为空）且手机号命中——排除已被其他微信换绑走的同号档案
+     */
+    private LambdaQueryWrapper<BizMember> ownedMemberWrapper(BizMember me) {
+        boolean hasOpenId = StringUtils.isNotBlank(me.getOpenId());
+        boolean hasMobile = StringUtils.isNotBlank(me.getMobile());
+        LambdaQueryWrapper<BizMember> wrapper = new LambdaQueryWrapper<BizMember>();
+        if (hasOpenId && hasMobile) {
+            wrapper.and(w -> w.eq(BizMember::getOpenId, me.getOpenId())
+                .or(x -> x.eq(BizMember::getMobile, me.getMobile()).isNull(BizMember::getOpenId)));
+        }
+        else if (hasOpenId) {
+            wrapper.eq(BizMember::getOpenId, me.getOpenId());
+        }
+        else if (hasMobile) {
+            wrapper.eq(BizMember::getMobile, me.getMobile()).isNull(BizMember::getOpenId);
+        }
+        else {
+            // 理论不可达（登录链路必有 open_id）：兜底空结果条件
+            wrapper.apply("1 = 0");
+        }
+        return wrapper;
     }
 
     /**
