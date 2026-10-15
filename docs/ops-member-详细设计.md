@@ -180,9 +180,9 @@ CREATE TABLE `biz_point_log` (
 - 落点：`ruoyi-modules/ops-business` 新增 `org.dromara.business.member` 包，服务与配置沿用 ops-business（9206），无新服务
 - 改动点（跨模块，同 store 域改 RemoteDeptService 先例）：`ruoyi-auth` 新增微信登录接口（架构 8.3，详见 4.5）
 
-### 4.2 员工端 REST（controller/，管理台 + 小程序工作台共用，URL /member/**）
+### 4.2 员工端 REST（controller/，管理台专用，URL /member/**）
 
-小程序工作台店员登录即员工 token（pc 端 loginType），复用下表接口，与 store 域同构。
+本节接口**仅供管理台（PC）调用**；小程序员工端走独立的 `/mp/staff/**` 接口（见 4.6 定稿方案），与下表接口**共用 service 层**实现，与 store 域同构。
 
 | # | 方法 | 路径 | 权限标识 | 说明 |
 |---|---|---|---|---|
@@ -234,6 +234,30 @@ public interface IBizMemberService {
 - 新增 `POST /auth/mp/login`：入参 `{ code, storeId }`，`code2session` 换 open_id → 按 (tenant, storeId, open_id) 查档案：命中直接颁发 mp 端 token；未命中返回「需确认手机号」标记，前端引导调 `/mp/member/bind-mobile` 完成建档/补绑后重颁 token
 - Sa-Token `loginType = mp`，与 pc 端会话完全隔离；mp 端 token 不进 sys_client 体系，网关 `/mp/**` 走白名单 + 自定义拦截器校验
 - 小程序 appid/secret 存 Nacos（`ops-business.yml` 或 auth 配置），**开发期无真实小程序时提供 mock 开关**（固定 open_id 注入，见 T5）
+
+### 4.6 MP 员工端（小程序工作台）· 定稿方案（2026-10-15，决策 D9–D11）
+
+**身份识别：自动匹配，无手动绑定流程（D9）**
+
+- 前提：**门店与部门一一对应**（store 域定稿）；管理用户（sys_user）经 `dept_id` 归属门店
+- 判定时机：`/auth/mp/login` 颁发 token、以及切店重签 token 时，以会员 `mobile` 匹配「当前门店对应部门下、状态正常」的管理用户手机号（`sys_user.phonenumber`）
+- 命中 → 该会员即本店员工，token payload 附 `employeeId`（= sys_user_id），会员中心出现「员工工作台」入口；未命中 → 纯顾客 token（无 employeeId）
+- 匹配到多条同手机号管理用户时取 `user_id` 最小的一条；部门内手机号唯一性作为管理台录入约定
+- 误绑知情与兜底：顾客手机号与员工手机号一致即现入口（概率低），管理员停用对应管理用户或修正手机号即可即时摘除
+
+**接口与鉴权：不接管理台 token，员工端接口独立（D10）**
+
+- 员工端接口落 `controller/mp/`，Controller 类名加 `MpStaff` 前缀（如 `MpStaffMemberController`），URL 仍为 `/mp/staff/**`；不与 4.2 管理台接口共用 URL，仅**共用 service 层**
+- 鉴权沿用 mp token（header `Mp-Token`），payload 扩展为 `{memberId, employeeId?}`；**不建** sa-token pc 会话、不接 `Authorization`、不进 sys_client 体系
+- 权限不做细分：token 含 `employeeId` 即可调用全部 `/mp/staff/**` 接口；管理台 RBAC 权限标识（4.2 表 `ops:member:*` 等）**仅作用于管理台接口**
+- 拦截器扩展：mp 拦截器解析出 `employeeId` 后注入 request attribute（`OpsMpConstants` 新增 `MP_EMPLOYEE_ID_ATTR`），并校验 employeeId 对应管理用户的部门与当前请求门店一致（防切店残留身份）
+
+**操作日志：记管理用户 + 来源区分（D11）**
+
+- mp 员工端操作的记录口径与管理台一致：操作人 = `employeeId`（会员对应的管理用户），**不记 memberId**
+- 实现：mp 员工拦截器将 `employeeId` 构造 `LoginUser` 注入 `LoginHelper` 上下文，`@Log` 记录机制直接复用 PC 端
+- 日志增加**来源标记**（PC / MP 员工端）：mp 员工请求由拦截器透传来源，随操作日志落库，审计时区分渠道
+- 边界：会员本人操作（`/mp/member/**`）仍记 memberId，员工上下文注入只发生在 `/mp/staff/**` 拦截器内，两个链路互不影响
 
 ## 5. 业务规则落地
 
@@ -395,3 +419,6 @@ UPDATE biz_member SET balance = balance - #{amount}
 | D6 | 冲正「当日」= 服务器时区自然日 00:00 起 | PRD「仅限当日」的唯一合理解释；跨零点不可冲 |
 | D7 | mp 端「当前店」不落库 | 前端状态 + 按最近消费排序的门店列表即可满足 PRD 交互，服务端零状态 |
 | D8 | 操作店员姓名冗余于充值流水 | 员工删除/改名后流水仍可读（参照 dept_name 冗余先例） |
+| D9 | MP 员工身份**自动识别**、无绑定流程（2026-10-15） | 会员 mobile 匹配当前门店对应部门下管理用户手机号即员工；零操作体验优先，误绑靠管理台手机号唯一录入 + 停用兜底（详见 4.6） |
+| D10 | mp 员工端**不接管理台 token / RBAC 注解**，接口独立仅共用 service（2026-10-15） | 命中员工身份即全功能开放（PRD 无员工细分权限诉求）；管理台权限标识只作用管理台，两套鉴权语义互不渗透（详见 4.6） |
+| D11 | mp 员工端操作日志记 sysUserId 并加来源标记（PC / MP 员工端）（2026-10-15） | 审计口径与管理台一致（记管理用户而非会员），来源区分防渠道混淆（详见 4.6） |
