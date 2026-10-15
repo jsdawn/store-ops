@@ -118,7 +118,7 @@ CREATE TABLE biz_order_item (
 - `MpBizOrderController`（controller/mp/，/mp/order/**，顾客端我的消费记录，见 4.3）
 - 菜单/接口权限见第 6 节
 
-### 4.2 员工端 REST（controller/，管理台 + 小程序工作台共用，URL /order/**）
+### 4.2 管理台 REST（controller/，管理台 + 小程序工作台共用，URL /order/**）
 
 | # | 方法 | URL | 说明 | 权限 |
 |---|---|---|---|---|

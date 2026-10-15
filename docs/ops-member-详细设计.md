@@ -180,7 +180,7 @@ CREATE TABLE `biz_point_log` (
 - 落点：`ruoyi-modules/ops-business` 新增 `org.dromara.business.member` 包，服务与配置沿用 ops-business（9206），无新服务
 - 改动点（跨模块，同 store 域改 RemoteDeptService 先例）：`ruoyi-auth` 新增微信登录接口（架构 8.3，详见 4.5）
 
-### 4.2 员工端 REST（controller/，管理台专用，URL /member/**）
+### 4.2 管理台 REST（controller/，管理台专用，URL /member/**）
 
 本节接口**仅供管理台（PC）调用**；小程序员工端走独立的 `/mp/staff/**` 接口（见 4.6 定稿方案），与下表接口**共用 service 层**实现，与 store 域同构。
 
