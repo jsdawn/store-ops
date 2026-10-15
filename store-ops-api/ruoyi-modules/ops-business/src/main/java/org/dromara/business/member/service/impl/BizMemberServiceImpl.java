@@ -234,6 +234,24 @@ public class BizMemberServiceImpl implements IBizMemberService {
     }
 
     /**
+     * 【域间门面】余额收款冲正：原子加回余额 + 记冲正流水（biz_no=订单号）
+     */
+    @Override
+    public void reversalConsume(Long memberId, BigDecimal amount, String orderNo) {
+        BizMember member = baseMapper.selectById(memberId);
+        if (member == null) {
+            throw new ServiceException("会员不存在");
+        }
+        int rows = baseMapper.addBalance(memberId, amount);
+        if (rows == 0) {
+            throw new ServiceException("余额冲正失败");
+        }
+        BigDecimal afterBalance = baseMapper.selectById(memberId).getBalance();
+        balanceLogMapper.insert(buildBalanceLog(member, amount, afterBalance,
+            OpsMemberConstants.BALANCE_TYPE_REVERSAL, orderNo, null));
+    }
+
+    /**
      * 构建余额流水
      */
     private BizBalanceLog buildBalanceLog(BizMember member, BigDecimal changeAmount, BigDecimal afterBalance,

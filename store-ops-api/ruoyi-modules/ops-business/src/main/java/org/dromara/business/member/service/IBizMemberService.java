@@ -92,4 +92,15 @@ public interface IBizMemberService {
      */
     boolean deductPoints(Long memberId, BigDecimal points, Long couponId);
 
+    /**
+     * 【域间门面】余额收款冲正：原子加回余额 + 记余额冲正流水（biz_no=订单号，详设 order 5.6 / D4）
+     *
+     * <p>供 order 域错账冲正调用；不动积分、不动累计消费（PRD 6.5 简化规则）。</p>
+     *
+     * @param memberId 会员ID
+     * @param amount   加回金额（正数）
+     * @param orderNo  订单号
+     */
+    void reversalConsume(Long memberId, BigDecimal amount, String orderNo);
+
 }
