@@ -40,9 +40,11 @@ export default defineConfig({
               : svgStr.replace(/^<svg /, '<svg fill="currentColor" ')
 
             // 如果 svg 有 width, 和 height 属性，将这些属性改为 1em，否则无法显示图标
+            // 注意：[^>]*? 限制在 <svg> 开标签内且 \swidth 排除 stroke-width，
+            // 否则单行 SVG 的 stroke-width 会被误改成 1em（线条撑满画布 → mask 渲染成实心块）
             svgStr = svgStr
-              .replace(/(<svg.*?width=)"(.*?)"/, '$1"1em"')
-              .replace(/(<svg.*?height=)"(.*?)"/, '$1"1em"')
+              .replace(/(<svg[^>]*?\swidth=)"(.*?)"/, '$1"1em"')
+              .replace(/(<svg[^>]*?\sheight=)"(.*?)"/, '$1"1em"')
 
             return svgStr
           },

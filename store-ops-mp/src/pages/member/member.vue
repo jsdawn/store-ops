@@ -111,6 +111,16 @@ function goEditProfile() {
 /** 切换门店弹层（Hero 切换胶囊 / 服务列表「切换门店」行共用入口） */
 const showStorePicker = ref(false)
 
+/** 弹层内扫门店码成功 → 提取门店ID，走 enterStore（已注册切换 / 未注册转登录） */
+function onStoreScanned(raw: string) {
+  const sid = raw.match(/\d{10,}/)?.[0]
+  if (!sid) {
+    uni.showToast({ title: '无效的门店码', icon: 'none' })
+    return
+  }
+  enterStore(sid)
+}
+
 // ---- 展示态（无接口的数据先静态占位，接口就绪后替换） ----
 const member = computed(() => mpStore.member)
 
@@ -140,7 +150,7 @@ const memberNoText = computed(() => member.value?.memberNo || '-')
 
   <view v-else class="box-border min-h-screen bg-cream">
     <!-- Hero 渐变卡（设计稿 3:1）：状态栏沉浸 + 门店条 + 会员信息行 -->
-    <view class="rounded-b-[48rpx] from-[#ff9a3d] to-[#ff6b5c] bg-gradient-to-r px-[32rpx] pb-[48rpx] pt-[var(--status-bar-height)]">
+    <view class="rounded-b-[48rpx] from-[#ff9a3d] to-[#ff6b5c] bg-gradient-to-br px-[32rpx] pb-[48rpx] pt-[var(--status-bar-height)]">
       <!-- 导航占位（微信胶囊浮于右上，设计稿导航区高 36px） -->
       <view class="h-[60px]" />
 
@@ -275,6 +285,6 @@ const memberNoText = computed(() => member.value?.memberNo || '-')
     </view>
 
     <!-- 切换门店底部弹层（选中后重签 token 写回会话，资产区 computed 自动刷新） -->
-    <StorePicker v-model="showStorePicker" />
+    <StorePicker v-model="showStorePicker" @scanned="onStoreScanned" />
   </view>
 </template>
