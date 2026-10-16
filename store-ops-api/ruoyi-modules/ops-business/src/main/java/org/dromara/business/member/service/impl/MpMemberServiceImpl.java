@@ -96,7 +96,16 @@ public class MpMemberServiceImpl implements IMpMemberService {
             throw new ServiceException("会员不属于当前门店");
         }
         BizStore store = TenantHelper.ignore(() -> storeMapper.selectById(member.getStoreId()));
-        return toVo(member, store == null ? null : store.getStoreName());
+        MpMemberVo vo = toVo(member, store == null ? null : store.getStoreName());
+        // 员工身份识别（决策 D9）：me 接口与登录/绑手机/切店同口径，保证刷新后仍展示工作台入口
+        if (store != null) {
+            MpStaffIdentity staff = resolveStaff(store.getTenantId(), store.getDeptId(), member.getMobile());
+            if (staff != null) {
+                vo.setEmployeeId(staff.userId());
+                vo.setEmployeeName(staff.nickname());
+            }
+        }
+        return vo;
     }
 
     @Override
