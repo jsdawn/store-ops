@@ -59,4 +59,15 @@ public class OpsMemberConstants {
      */
     public static final int SEARCH_LIMIT = 20;
 
+    /**
+     * mp 员工端充值提交凭证 Redis key 前缀（完整 key = 前缀 + uuid，value = memberId|storeId，
+     * 一次有效，详设 5.2 校验链第 4 步「幂等 token 一次有效」）
+     */
+    public static final String MP_RECHARGE_TOKEN_KEY = "ops:mp:recharge:token:";
+
+    /**
+     * mp 员工端充值提交凭证有效期（分钟）
+     */
+    public static final long MP_RECHARGE_TOKEN_TTL_MINUTES = 5;
+
 }

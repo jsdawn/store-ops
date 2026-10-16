@@ -138,41 +138,63 @@ public class BizMemberServiceImpl implements IBizMemberService {
     }
 
     /**
-     * 充值入账（同一本地事务：加余额 + 充值流水 + 余额流水快照，详设 5.2）
+     * 充值入账（管理台）：数据权限版单查圈定会员，操作人 = 当前登录用户
      */
     @Transactional(rollbackFor = Exception.class)
     @Override
     public Boolean recharge(BizRechargeBo bo) {
-        if (bo.getGiftAmount().compareTo(bo.getAmount()) > 0) {
-            throw new ServiceException("赠送金额不能大于充值本金");
-        }
         // 数据权限版单查：范围外会员视为不存在（越权拦截）
         BizMemberVo member = baseMapper.selectMemberVoById(bo.getMemberId());
         if (member == null) {
             throw new ServiceException("会员不存在或无权操作");
         }
-        checkStoreEnabled(member.getStoreId());
+        return doRecharge(bo, member.getMemberId(), member.getStoreId(), member.getDeptId(),
+            LoginHelper.getUserId(), LoginHelper.getUsername());
+    }
+
+    /**
+     * 【mp 员工端】充值入账（决策 D11）：会员归属由员工端服务层校验后进入，操作人 = 员工身份（管理用户）。
+     * 运行于 TenantHelper.dynamic 租户上下文内；操作日志来源标记（PC / MP）随 D11 拦截器改造统一落地
+     */
+    @Transactional(rollbackFor = Exception.class)
+    @Override
+    public Boolean rechargeByStaff(BizRechargeBo bo, Long operatorId, String operatorName) {
+        BizMember member = baseMapper.selectById(bo.getMemberId());
+        if (member == null) {
+            throw new ServiceException("会员不存在");
+        }
+        return doRecharge(bo, member.getMemberId(), member.getStoreId(), member.getDeptId(), operatorId, operatorName);
+    }
+
+    /**
+     * 充值入账共用内核（同一本地事务：加余额 + 充值流水 + 余额流水快照，详设 5.2）
+     */
+    private Boolean doRecharge(BizRechargeBo bo, Long memberId, Long storeId, Long deptId,
+                               Long operatorId, String operatorName) {
+        if (bo.getGiftAmount().compareTo(bo.getAmount()) > 0) {
+            throw new ServiceException("赠送金额不能大于充值本金");
+        }
+        checkStoreEnabled(storeId);
         BigDecimal total = bo.getAmount().add(bo.getGiftAmount());
-        baseMapper.addBalance(member.getMemberId(), total);
+        baseMapper.addBalance(memberId, total);
 
         String rechargeNo = generateRechargeNo();
         BizRechargeLog log = new BizRechargeLog();
         log.setRechargeNo(rechargeNo);
-        log.setStoreId(member.getStoreId());
-        log.setDeptId(member.getDeptId());
-        log.setMemberId(member.getMemberId());
+        log.setStoreId(storeId);
+        log.setDeptId(deptId);
+        log.setMemberId(memberId);
         log.setAmount(bo.getAmount());
         log.setGiftAmount(bo.getGiftAmount());
         log.setPayType(bo.getPayType());
-        log.setOperatorId(LoginHelper.getUserId());
-        log.setOperatorName(LoginHelper.getUsername());
+        log.setOperatorId(operatorId);
+        log.setOperatorName(operatorName);
         log.setStatus(OpsMemberConstants.RECHARGE_STATUS_VALID);
         log.setRemark(bo.getRemark());
         rechargeLogMapper.insert(log);
 
-        BigDecimal afterBalance = baseMapper.selectById(member.getMemberId()).getBalance();
-        BizMember entity = baseMapper.selectById(member.getMemberId());
-        balanceLogMapper.insert(buildBalanceLog(entity, total, afterBalance,
+        BizMember entity = baseMapper.selectById(memberId);
+        balanceLogMapper.insert(buildBalanceLog(entity, total, entity.getBalance(),
             OpsMemberConstants.BALANCE_TYPE_RECHARGE, rechargeNo, null));
         return true;
     }

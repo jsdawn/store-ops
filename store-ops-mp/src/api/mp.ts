@@ -133,3 +133,45 @@ export interface IMpStaffHome {
 export function getStaffHome() {
   return http.get<IMpStaffHome>('/staff/home')
 }
+
+/** mp 员工端会员精简项（选会员弹层行，对应后端 MpStaffMemberBriefVo） */
+export interface IMpStaffMemberBrief {
+  memberId: string
+  nickName?: string
+  mobile?: string
+  memberNo?: string
+  balance?: number
+  pointBalance?: number
+}
+
+/**
+ * 员工端本店会员搜索（充值选会员弹层）：keyword 手机号/卡号/昵称模糊，前 20 条
+ * 路径说明同 getStaffHome：baseURL 已含 /mp，相对路径不重复带前缀
+ */
+export function searchStaffMembers(keyword = '') {
+  return http.get<IMpStaffMemberBrief[]>('/staff/member/search', { keyword })
+}
+
+/**
+ * 签发充值提交凭证（Redis 一次有效，5 分钟，详设 5.2 防重复提交）
+ */
+export function getRechargeToken() {
+  return http.get<string>('/staff/member/recharge/token')
+}
+
+/** 员工端充值入参（对应后端 MpStaffRechargeBo，payType 1微信 2支付宝 3现金） */
+export interface IMpStaffRecharge {
+  memberId: string
+  amount: number
+  giftAmount: number
+  payType: string
+  remark?: string
+  rechargeToken: string
+}
+
+/**
+ * 员工端充值入账：线下收款后录入，即时生效不可撤销（错账走管理台冲正）
+ */
+export function staffRecharge(data: IMpStaffRecharge) {
+  return http.post<void>('/staff/member/recharge', data)
+}

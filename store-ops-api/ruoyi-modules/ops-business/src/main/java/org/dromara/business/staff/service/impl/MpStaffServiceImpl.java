@@ -1,9 +1,16 @@
 package org.dromara.business.staff.service.impl;
 
+import cn.hutool.core.util.IdUtil;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.dromara.business.member.constant.OpsMemberConstants;
 import org.dromara.business.member.domain.BizMember;
+import org.dromara.business.member.domain.bo.BizRechargeBo;
+import org.dromara.business.member.domain.bo.MpStaffRechargeBo;
+import org.dromara.business.member.domain.vo.MpStaffMemberBriefVo;
 import org.dromara.business.member.mapper.BizMemberMapper;
+import org.dromara.business.member.service.IBizMemberService;
 import org.dromara.business.staff.domain.vo.MpStaffHomeVo;
 import org.dromara.business.staff.service.IMpStaffService;
 import org.dromara.business.store.domain.BizStore;
@@ -11,12 +18,15 @@ import org.dromara.business.store.mapper.BizStoreMapper;
 import org.dromara.common.core.constant.SystemConstants;
 import org.dromara.common.core.exception.ServiceException;
 import org.dromara.common.core.utils.StringUtils;
+import org.dromara.common.redis.utils.RedisUtils;
 import org.dromara.common.tenant.helper.TenantHelper;
 import org.dromara.system.api.RemoteUserService;
 import org.dromara.system.api.model.LoginUser;
 import org.apache.dubbo.config.annotation.DubboReference;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -34,12 +44,95 @@ public class MpStaffServiceImpl implements IMpStaffService {
 
     private final BizMemberMapper memberMapper;
     private final BizStoreMapper storeMapper;
+    private final IBizMemberService memberService;
 
     @DubboReference
     private RemoteUserService remoteUserService;
 
     @Override
     public MpStaffHomeVo home(Long memberId, Long employeeId) {
+        StaffContext ctx = requireStaffContext(memberId, employeeId);
+        MpStaffHomeVo vo = new MpStaffHomeVo();
+        vo.setStoreId(ctx.store().getStoreId());
+        vo.setStoreName(ctx.store().getStoreName());
+        vo.setStaffName(ctx.staffName());
+        return vo;
+    }
+
+    @Override
+    public List<MpStaffMemberBriefVo> searchMembers(Long memberId, Long employeeId, String keyword) {
+        StaffContext ctx = requireStaffContext(memberId, employeeId);
+        List<BizMember> list = TenantHelper.dynamic(ctx.store().getTenantId(), () ->
+            memberMapper.selectList(new LambdaQueryWrapper<BizMember>()
+                .eq(BizMember::getStoreId, ctx.store().getStoreId())
+                .and(StringUtils.isNotBlank(keyword), w -> {
+                    String k = keyword.trim();
+                    w.like(BizMember::getMobile, k)
+                        .or().like(BizMember::getMemberNo, k)
+                        .or().like(BizMember::getNickName, k);
+                })
+                .orderByDesc(BizMember::getCreateTime)
+                .last("LIMIT " + OpsMemberConstants.SEARCH_LIMIT)));
+        return list.stream().map(m -> {
+            MpStaffMemberBriefVo vo = new MpStaffMemberBriefVo();
+            vo.setMemberId(m.getMemberId());
+            vo.setNickName(m.getNickName());
+            vo.setMobile(m.getMobile());
+            vo.setMemberNo(m.getMemberNo());
+            vo.setBalance(m.getBalance());
+            vo.setPointBalance(m.getPointBalance());
+            return vo;
+        }).toList();
+    }
+
+    @Override
+    public String issueRechargeToken(Long memberId, Long employeeId) {
+        StaffContext ctx = requireStaffContext(memberId, employeeId);
+        String token = IdUtil.fastSimpleUUID();
+        // value 绑定门店上下文，防跨店重放
+        RedisUtils.setCacheObject(OpsMemberConstants.MP_RECHARGE_TOKEN_KEY + token,
+            ctx.member().getMemberId() + "|" + ctx.store().getStoreId(),
+            Duration.ofMinutes(OpsMemberConstants.MP_RECHARGE_TOKEN_TTL_MINUTES));
+        return token;
+    }
+
+    @Override
+    public void recharge(MpStaffRechargeBo bo, Long memberId, Long employeeId) {
+        StaffContext ctx = requireStaffContext(memberId, employeeId);
+        // 提交凭证一次有效：不存在 / 不匹配当前门店上下文 → 拒绝（防弱网重复提交与跨店重放）
+        String tokenKey = OpsMemberConstants.MP_RECHARGE_TOKEN_KEY + bo.getRechargeToken();
+        Object cached = RedisUtils.getCacheObject(tokenKey);
+        String expected = ctx.member().getMemberId() + "|" + ctx.store().getStoreId();
+        if (cached == null || !expected.equals(cached.toString())) {
+            throw new ServiceException("提交凭证已失效，请刷新后重试");
+        }
+        RedisUtils.deleteObject(tokenKey);
+        // 目标会员必须属当前门店（员工数据权限，详设 5.2 校验链第 1 步）
+        BizMember target = TenantHelper.ignore(() -> memberMapper.selectById(bo.getMemberId()));
+        if (target == null || !ctx.store().getStoreId().equals(target.getStoreId())) {
+            throw new ServiceException("会员不属于当前门店");
+        }
+        // 入账 + 流水复用 member 域共用内核；操作人 = 员工身份（管理用户，决策 D11）
+        BizRechargeBo rechargeBo = new BizRechargeBo();
+        rechargeBo.setMemberId(bo.getMemberId());
+        rechargeBo.setAmount(bo.getAmount());
+        rechargeBo.setGiftAmount(bo.getGiftAmount());
+        rechargeBo.setPayType(bo.getPayType());
+        rechargeBo.setRemark(bo.getRemark());
+        TenantHelper.dynamic(ctx.store().getTenantId(), () ->
+            memberService.rechargeByStaff(rechargeBo, employeeId, ctx.staffName()));
+    }
+
+    /**
+     * 员工上下文（会员档案 + 门店 + 复检通过的员工姓名），工作台各接口共用前置
+     */
+    private record StaffContext(BizMember member, BizStore store, String staffName) {
+    }
+
+    /**
+     * 解析并复检员工上下文：会员档案 → 门店（启用中）→ 员工身份实时重跑且与 token 声明一致
+     */
+    private StaffContext requireStaffContext(Long memberId, Long employeeId) {
         if (employeeId == null) {
             throw new ServiceException("当前账号不是门店员工");
         }
@@ -51,7 +144,6 @@ public class MpStaffServiceImpl implements IMpStaffService {
         if (store == null || !SystemConstants.NORMAL.equals(store.getStatus())) {
             throw new ServiceException("门店不存在或已停业");
         }
-        // 实时复检员工身份：识别口径重跑（存在 + 启用 + 部门一致），并须与 token 声明一致
         String staffName = null;
         if (StringUtils.isNotBlank(member.getMobile()) && store.getDeptId() != null) {
             try {
@@ -67,11 +159,7 @@ public class MpStaffServiceImpl implements IMpStaffService {
         if (staffName == null) {
             throw new ServiceException("员工身份已失效，请重新登录后进入工作台");
         }
-        MpStaffHomeVo vo = new MpStaffHomeVo();
-        vo.setStoreId(store.getStoreId());
-        vo.setStoreName(store.getStoreName());
-        vo.setStaffName(staffName);
-        return vo;
+        return new StaffContext(member, store, staffName);
     }
 
 }

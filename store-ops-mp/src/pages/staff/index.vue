@@ -7,7 +7,7 @@ import { useMpStore } from '@/store'
  *
  * 数据：/mp/staff/home（token 内 employeeId 非空才可访问，服务层实时复检员工身份，
  * 停用/调岗后旧 token 立即失效 → 401/403 由请求层与本地兜底引导返回会员中心）。
- * 宫格入口 v1 占位：收银开单 / 会员充值 / 会员查询 / 今日流水 建设中。
+ * 宫格入口：会员充值已上线（/pages/staff/recharge）；收银开单 / 会员查询 / 今日流水 v1 占位建设中。
  */
 definePage({
   style: {
@@ -43,17 +43,20 @@ function exitStaff() {
   uni.navigateBack()
 }
 
-/** 宫格入口 v1 占位：对应功能页后续迭代 */
-function todo() {
-  uni.showToast({ title: '功能建设中', icon: 'none' })
+/** 宫格入口：充值页已上线，其余对应功能页后续迭代 */
+function open(item: (typeof gridItems)[number]) {
+  if (item.path)
+    uni.navigateTo({ url: item.path })
+  else
+    uni.showToast({ title: '功能建设中', icon: 'none' })
 }
 
-/** 宫格配置：icon 色块底色 / icon 色 / 标题 / 副标题（设计稿 39:418 宫格卡） */
+/** 宫格配置：icon 色块底色 / icon 色 / 标题 / 副标题 / 路由（设计稿 39:418 宫格卡） */
 const gridItems = [
-  { icon: 'i-my-icons-cashier', bg: 'bg-[#e8f1ff]', color: '#4d9fff', title: '收银开单', subtitle: '逐笔录入 · 确认收款' },
-  { icon: 'i-my-icons-wallet', bg: 'bg-[#fff6dc]', color: '#f5a623', title: '会员充值', subtitle: '线下收款 · 确认到账' },
-  { icon: 'i-my-icons-staff-search', bg: 'bg-[#e6f9ee]', color: '#34c77b', title: '会员查询', subtitle: '本店会员池' },
-  { icon: 'i-my-icons-flow', bg: 'bg-[#ffe9f0]', color: '#ff5c7a', title: '今日流水', subtitle: '订单 · 支付方式' },
+  { icon: 'i-my-icons-cashier', bg: 'bg-[#e8f1ff]', color: '#4d9fff', title: '收银开单', subtitle: '逐笔录入 · 确认收款', path: '' },
+  { icon: 'i-my-icons-wallet', bg: 'bg-[#fff6dc]', color: '#f5a623', title: '会员充值', subtitle: '线下收款 · 确认到账', path: '/pages/staff/recharge' },
+  { icon: 'i-my-icons-staff-search', bg: 'bg-[#e6f9ee]', color: '#34c77b', title: '会员查询', subtitle: '本店会员池', path: '' },
+  { icon: 'i-my-icons-flow', bg: 'bg-[#ffe9f0]', color: '#ff5c7a', title: '今日流水', subtitle: '订单 · 支付方式', path: '' },
 ] as const
 </script>
 
@@ -93,7 +96,7 @@ const gridItems = [
           class="flex flex-col items-center gap-[14rpx] py-[28rpx]"
           hover-class="opacity-80"
           :hover-stay-time="60"
-          @click="todo"
+          @click="open(item)"
         >
           <view class="h-[92rpx] w-[92rpx] center rounded-[28rpx]" :class="item.bg">
             <view class="text-[46rpx]" :class="[item.icon, item.color]" />

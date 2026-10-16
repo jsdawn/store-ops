@@ -62,6 +62,17 @@ public interface IBizMemberService {
     Boolean recharge(BizRechargeBo bo);
 
     /**
+     * 【mp 员工端】充值入账（决策 D11）：会员归属由员工端服务层校验后进入，
+     * 操作人 = 员工身份（管理用户），不依赖 PC 登录态
+     *
+     * @param bo           充值入参
+     * @param operatorId   操作员工 = 管理用户ID（token 换出）
+     * @param operatorName 操作员工姓名（实时复检取回）
+     * @return 结果
+     */
+    Boolean rechargeByStaff(BizRechargeBo bo, Long operatorId, String operatorName);
+
+    /**
      * 【域间门面】原子扣减余额（余额不足返回 false，不记流水不抛异常）
      *
      * <p>供 order 域余额收款调用；扣减成功同事务内记余额消费流水（biz_type=消费，biz_no=orderNo）。</p>
