@@ -40,6 +40,11 @@ public class RemoteStoreVo implements Serializable {
     private String address;
 
     /**
+     * 门店绑定部门ID（门店与部门一一对应，员工身份识别按此匹配管理用户，详设 4.6）
+     */
+    private Long deptId;
+
+    /**
      * 状态（0启用 1停用）
      */
     private String status;

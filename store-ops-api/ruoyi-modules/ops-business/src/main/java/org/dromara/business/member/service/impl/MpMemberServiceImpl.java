@@ -5,6 +5,7 @@ import cn.hutool.core.util.ObjectUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.dubbo.config.annotation.DubboReference;
 import org.dromara.business.member.constant.OpsMemberConstants;
 import org.dromara.business.member.domain.BizMember;
 import org.dromara.business.member.domain.bo.MpBindMobileBo;
@@ -24,6 +25,9 @@ import org.dromara.common.core.utils.StringUtils;
 import org.dromara.common.redis.utils.RedisUtils;
 import org.dromara.common.tenant.helper.TenantHelper;
 import org.dromara.ops.api.constant.OpsMpConstants;
+import org.dromara.ops.api.domain.dto.MpTokenPayload;
+import org.dromara.system.api.RemoteUserService;
+import org.dromara.system.api.model.LoginUser;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -53,6 +57,9 @@ public class MpMemberServiceImpl implements IMpMemberService {
     private final BizStoreMapper storeMapper;
     private final IBizStoreService storeService;
 
+    @DubboReference
+    private RemoteUserService remoteUserService;
+
     @Override
     @Transactional(rollbackFor = Exception.class)
     public MpLoginVo bindMobile(MpBindMobileBo bo) {
@@ -65,11 +72,17 @@ public class MpMemberServiceImpl implements IMpMemberService {
         }
         String tenantId = store.getTenantId();
         BizMember member = TenantHelper.dynamic(tenantId, () -> bindOrRegister(store, bo));
-        String token = issueToken(member.getMemberId());
+        MpStaffIdentity staff = resolveStaff(tenantId, store.getDeptId(), member.getMobile());
+        String token = issueToken(member.getMemberId(), staff == null ? null : staff.userId());
         MpLoginVo loginVo = new MpLoginVo();
         loginVo.setToken(token);
         loginVo.setExpiresIn(OpsMpConstants.MP_TOKEN_TTL_DAYS * 24 * 3600);
-        loginVo.setMember(toVo(member, store.getStoreName()));
+        MpMemberVo vo = toVo(member, store.getStoreName());
+        if (staff != null) {
+            vo.setEmployeeId(staff.userId());
+            vo.setEmployeeName(staff.nickname());
+        }
+        loginVo.setMember(vo);
         return loginVo;
     }
 
@@ -139,13 +152,46 @@ public class MpMemberServiceImpl implements IMpMemberService {
         if (target == null) {
             throw new ServiceException("该门店尚未建立会员档案");
         }
-        // token 绑定档案ID：切店 = 按目标店档案重签（mp token 换出 memberId 的契约不变）
-        String token = issueToken(target.getMemberId());
+        // token 绑定档案ID：切店 = 按目标店档案重签（mp token 换出 memberId 的契约不变），
+        // 重签时按新门店重新识别员工身份（决策 D9：切店后重新获取）
+        MpStaffIdentity staff = resolveStaff(store.getTenantId(), store.getDeptId(), target.getMobile());
+        String token = issueToken(target.getMemberId(), staff == null ? null : staff.userId());
         MpLoginVo vo = new MpLoginVo();
         vo.setToken(token);
         vo.setExpiresIn(OpsMpConstants.MP_TOKEN_TTL_DAYS * 24 * 3600);
-        vo.setMember(toVo(target, store.getStoreName()));
+        MpMemberVo memberVo = toVo(target, store.getStoreName());
+        if (staff != null) {
+            memberVo.setEmployeeId(staff.userId());
+            memberVo.setEmployeeName(staff.nickname());
+        }
+        vo.setMember(memberVo);
         return vo;
+    }
+
+    /**
+     * 员工身份记录（管理用户ID + 姓名，工作台展示与操作日志口径，详设 4.6 / D9）
+     */
+    record MpStaffIdentity(Long userId, String nickname) {
+    }
+
+    /**
+     * 员工身份自动识别（决策 D9）：会员手机号命中「门店对应部门下、状态正常」的管理用户即员工。
+     * 查无此人 / 停用 / 部门不符 / 远程调用异常一律视为非员工，不阻断顾客链路
+     */
+    private MpStaffIdentity resolveStaff(String tenantId, Long deptId, String mobile) {
+        if (StringUtils.isBlank(mobile) || deptId == null) {
+            return null;
+        }
+        try {
+            LoginUser user = remoteUserService.getUserInfoByPhonenumber(mobile, tenantId);
+            if (user == null || !deptId.equals(user.getDeptId())) {
+                return null;
+            }
+            return new MpStaffIdentity(user.getUserId(), user.getNickname());
+        } catch (Exception e) {
+            log.debug("mp 员工身份未命中：tenantId={}, deptId={}, mobile={}", tenantId, deptId, mobile);
+            return null;
+        }
     }
 
     /**
@@ -248,11 +294,12 @@ public class MpMemberServiceImpl implements IMpMemberService {
     }
 
     /**
-     * 签发 mp 端 token（30 天，value = memberId，契约 OpsMpConstants）
+     * 签发 mp 端 token（30 天，value = {@link MpTokenPayload}：memberId + 员工身份，契约 OpsMpConstants）
      */
-    private String issueToken(Long memberId) {
+    private String issueToken(Long memberId, Long employeeId) {
         String token = IdUtil.fastSimpleUUID();
-        RedisUtils.setCacheObject(OpsMpConstants.MP_TOKEN_KEY + token, memberId,
+        RedisUtils.setCacheObject(OpsMpConstants.MP_TOKEN_KEY + token,
+            new MpTokenPayload(memberId, employeeId),
             Duration.ofDays(OpsMpConstants.MP_TOKEN_TTL_DAYS));
         return token;
     }

@@ -5,15 +5,16 @@ package org.dromara.ops.api.constant;
  *
  * <p>mp 端顾客（biz_member）不进 Sa-Token pc 会话与 sys_client 体系：
  * ruoyi-auth 在 /auth/mp/login 签发<b>不透明 token</b>，写入 Redis（key = {@link #MP_TOKEN_KEY} + token，
- * value = memberId，雪花全局唯一），有效期 {@link #MP_TOKEN_TTL_DAYS} 天；
- * ops-business mp 接口按 header 取 token、按 key 读 Redis 校验并取回 memberId。</p>
+ * value = {@link org.dromara.ops.api.domain.dto.MpTokenPayload}（memberId + 员工身份 employeeId，详设 4.6），
+ * 有效期 {@link #MP_TOKEN_TTL_DAYS} 天；ops-business mp 接口按 header 取 token、按 key 读 Redis 校验并取回身份。
+ * 历史兼容：旧 token value 为裸 memberId（Long），消费方按双格式解析。</p>
  *
  * @author store-ops
  */
 public class OpsMpConstants {
 
     /**
-     * mp 端不透明 token 的 Redis key 前缀（完整 key = 前缀 + token，value = memberId）
+     * mp 端不透明 token 的 Redis key 前缀（完整 key = 前缀 + token，value = MpTokenPayload）
      */
     public static final String MP_TOKEN_KEY = "ops:mp:token:";
 

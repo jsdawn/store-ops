@@ -67,4 +67,14 @@ public class MpMemberVo implements Serializable {
      */
     private String storeName;
 
+    /**
+     * 员工身份 = 管理用户ID（会员被识别为当前门店员工时下发，决策 D9）；非员工为 null
+     */
+    private Long employeeId;
+
+    /**
+     * 员工姓名（管理用户昵称，工作台「店员：xxx」展示用）
+     */
+    private String employeeName;
+
 }
