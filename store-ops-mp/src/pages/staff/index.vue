@@ -59,8 +59,8 @@ const gridItems = [
 
 <template>
   <view class="box-border min-h-screen bg-cream">
-    <!-- Hero 渐变头（45° 对角，同会员中心）：状态栏沉浸 + 门店身份条 -->
-    <view class="rounded-b-[48rpx] from-[#ff9a3d] to-[#ff6b5c] bg-gradient-to-bl px-[32rpx] pb-[52rpx] pt-[var(--status-bar-height)]">
+    <!-- Hero 渐变头（左上橙 → 右下红 45°，同会员中心）：状态栏沉浸 + 门店身份条 -->
+    <view class="rounded-b-[48rpx] from-[#ff9a3d] to-[#ff6b5c] bg-gradient-to-br px-[32rpx] pb-[52rpx] pt-[var(--status-bar-height)]">
       <!-- 导航占位（微信胶囊浮于右上） -->
       <view class="h-[60px]" />
 
