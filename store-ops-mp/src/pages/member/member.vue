@@ -108,6 +108,11 @@ function goEditProfile() {
   uni.navigateTo({ url: '/pages/profile/setup?mode=edit' })
 }
 
+/** 商家工作台入口（员工身份会员可见，详设 4.6） */
+function goStaffHome() {
+  uni.navigateTo({ url: '/pages/staff/index' })
+}
+
 /** 切换门店弹层（Hero 切换胶囊 / 服务列表「切换门店」行共用入口） */
 const showStorePicker = ref(false)
 
@@ -267,14 +272,15 @@ const memberNoText = computed(() => member.value?.memberNo || '-')
         />
       </view>
 
-      <!-- 商家工作台卡（员工身份接口未就绪，静态占位） -->
-      <view class="rounded-[32rpx] bg-white py-[8rpx]">
+      <!-- 商家工作台卡：仅员工身份会员可见（token 附 employeeId，决策 D9） -->
+      <view v-if="member?.employeeId" class="rounded-[32rpx] bg-white py-[8rpx]">
         <MemberMenuRow
           icon="i-my-icons-workbench"
           icon-bg="bg-[#fff0e4]"
           icon-color="#ff7a29"
           title="商家工作台"
-          subtitle="您已绑定员工身份 · 收银 / 充值 / 会员查询"
+          :subtitle="`员工：${member.employeeName || '已认证'} · 收银 / 充值 / 会员查询`"
+          @click="goStaffHome"
         />
       </view>
 

@@ -25,6 +25,10 @@ export interface IMpMember {
   balance?: number
   pointBalance?: number
   storeName?: string
+  /** 员工身份 = 管理用户ID（会员被识别为当前门店员工时下发，决策 D9）；雪花字符串 */
+  employeeId?: string
+  /** 员工姓名（工作台「店员：xxx」展示） */
+  employeeName?: string
 }
 
 /** mp 端登录会话（token + 会员档案，对应后端 MpLoginVo.member 部分） */
@@ -113,4 +117,19 @@ export function switchStore(storeId: string) {
  */
 export function getMe(storeId: string) {
   return http.get<IMpMember>('/member/me', { storeId })
+}
+
+/** mp 员工端工作台首页数据（对应后端 MpStaffHomeVo） */
+export interface IMpStaffHome {
+  storeId: string
+  storeName: string
+  staffName: string
+}
+
+/**
+ * 员工工作台首页：门店名 + 员工名（token 需带员工身份，服务层实时复检，详设 4.6）
+ * 路径说明同 bind-mobile：baseURL 已含 /mp，相对路径不重复带前缀
+ */
+export function getStaffHome() {
+  return http.get<IMpStaffHome>('/staff/home')
 }
