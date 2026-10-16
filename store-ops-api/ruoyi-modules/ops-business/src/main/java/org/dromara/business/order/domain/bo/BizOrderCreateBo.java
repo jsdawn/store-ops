@@ -20,7 +20,7 @@ import java.util.List;
 public class BizOrderCreateBo extends BaseEntity {
 
     /**
-     * 门店ID（工作台所属门店）
+     * 门店ID（开单所属门店）
      */
     @NotNull(message = "门店不能为空")
     private Long storeId;

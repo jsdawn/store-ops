@@ -12,7 +12,7 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 
 /**
- * 充值入账业务对象（员工端小程序工作台录入）
+ * 充值入账业务对象（管理台线下登记与员工端 /mp/staff/** 录入共用入参结构）
  *
  * @author store-ops
  */

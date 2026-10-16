@@ -68,11 +68,11 @@ CREATE TABLE IF NOT EXISTS `biz_order_item` (
 
 -- 3.1 菜单：订单管理（页面）
 INSERT INTO sys_menu (menu_id, menu_name, parent_id, order_num, path, component, query_param, is_frame, is_cache, menu_type, visible, status, perms, icon, create_dept, create_by, create_time, remark)
-VALUES (3030, '订单管理', 3000, 4, 'order', 'ops/order/index', '', 1, 0, 'C', '0', '0', '', 'documentation', 103, 1, sysdate(), '订单管理菜单（查询/详情/备注/作废/余额冲正；开单只在工作台）');
+VALUES (3030, '订单管理', 3000, 4, 'order', 'ops/order/index', '', 1, 0, 'C', '0', '0', '', 'documentation', 103, 1, sysdate(), '订单管理菜单（开单/收款/查询/详情/备注/作废/余额冲正）');
 
 -- 3.2 订单管理按钮权限
 INSERT INTO sys_menu (menu_id, menu_name, parent_id, order_num, path, component, query_param, is_frame, is_cache, menu_type, visible, status, perms, icon, create_dept, create_by, create_time, remark)
-VALUES (3031, '订单查询', 3030, 1, '#', '', '', 1, 0, 'F', '0', '0', 'ops:order:list', '#', 103, 1, sysdate(), '列表与工作台今日流水共用');
+VALUES (3031, '订单查询', 3030, 1, '#', '', '', 1, 0, 'F', '0', '0', 'ops:order:list', '#', 103, 1, sysdate(), '列表与今日流水（管理台）');
 INSERT INTO sys_menu (menu_id, menu_name, parent_id, order_num, path, component, query_param, is_frame, is_cache, menu_type, visible, status, perms, icon, create_dept, create_by, create_time, remark)
 VALUES (3032, '订单详情', 3030, 2, '#', '', '', 1, 0, 'F', '0', '0', 'ops:order:query', '#', 103, 1, sysdate(), '');
 INSERT INTO sys_menu (menu_id, menu_name, parent_id, order_num, path, component, query_param, is_frame, is_cache, menu_type, visible, status, perms, icon, create_dept, create_by, create_time, remark)
@@ -82,11 +82,11 @@ VALUES (3034, '订单备注', 3030, 4, '#', '', '', 1, 0, 'F', '0', '0', 'ops:or
 INSERT INTO sys_menu (menu_id, menu_name, parent_id, order_num, path, component, query_param, is_frame, is_cache, menu_type, visible, status, perms, icon, create_dept, create_by, create_time, remark)
 VALUES (3035, '余额收款冲正', 3030, 5, '#', '', '', 1, 0, 'F', '0', '0', 'ops:order:reversal', '#', 103, 1, sysdate(), '仅管理台，当日有效，与充值冲正 3022 同级');
 
--- 3.3 工作台按钮权限（开单/收款仅小程序工作台使用，不设页面菜单）
+-- 3.3 开单/收款按钮权限（管理台收银功能：订单页开单/收款入口；员工端走 /mp/staff/** 独立鉴权不走 RBAC，见 member 详设 4.6 D10）
 INSERT INTO sys_menu (menu_id, menu_name, parent_id, order_num, path, component, query_param, is_frame, is_cache, menu_type, visible, status, perms, icon, create_dept, create_by, create_time, remark)
-VALUES (3036, '收银开单', 3030, 6, '#', '', '', 1, 0, 'F', '0', '0', 'ops:order:add', '#', 103, 1, sysdate(), '小程序工作台按钮权限');
+VALUES (3036, '收银开单', 3030, 6, '#', '', '', 1, 0, 'F', '0', '0', 'ops:order:add', '#', 103, 1, sysdate(), '管理台开单入口按钮权限');
 INSERT INTO sys_menu (menu_id, menu_name, parent_id, order_num, path, component, query_param, is_frame, is_cache, menu_type, visible, status, perms, icon, create_dept, create_by, create_time, remark)
-VALUES (3037, '确认收款', 3030, 7, '#', '', '', 1, 0, 'F', '0', '0', 'ops:order:pay', '#', 103, 1, sysdate(), '小程序工作台按钮权限');
+VALUES (3037, '确认收款', 3030, 7, '#', '', '', 1, 0, 'F', '0', '0', 'ops:order:pay', '#', 103, 1, sysdate(), '管理台收款按钮权限');
 
 -- ----------------------------
 -- 4. 字典（dict_id/dict_code 用 6.0e18 高位固定段，避开 UI 生成的雪花 ID；
@@ -115,7 +115,7 @@ VALUES (6002000000000000044, '000000', 4, '现金收款',   '4', 'order_pay_type
 -- ----------------------------
 -- 5. 配套说明（运行时操作，非脚本）
 -- 5.1 管理台「租户管理 → 同步租户字典」补存量租户 order_status / order_pay_type 副本（自动清缓存）；
--- 5.2 角色绑定（详设第 6 节审查结论⑤）：店员勾 3031/3032/3036/3037（收银闭环）；
---     店长加 3033（作废，仅店长）与 3034；租户管理员全量 + 3035（余额冲正）；
--- 5.3 顾客端 /mp/order/**（我的消费记录）不走 pc 权限体系，Mp-Token 鉴权，详设 4.3。
+-- 5.2 角色绑定（详设第 6 节）：店长勾 3031/3032/3033（含作废，仅店长）与 3034；
+--     店员管理台无需订单菜单（收银走员工端 /mp/staff/**，不走 pc 权限体系）；租户管理员全量 + 3035（余额冲正）；
+-- 5.3 顾客端 /mp/order/**（我的消费记录）与员工端 /mp/staff/** 均不走 pc 权限体系，Mp-Token 鉴权，详设 4.3 / member 详设 4.6。
 -- ----------------------------

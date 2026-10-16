@@ -40,7 +40,7 @@ public interface IBizOrderService {
     BizOrderVo queryById(Long orderId);
 
     /**
-     * 工作台今日流水（营业额/单量仅算已完成；列表含待收款带状态，倒序上限 50）
+     * 今日流水汇总（营业额/单量仅算已完成；列表含待收款带状态，倒序上限 50；员工端 /mp/staff/** 共用）
      *
      * @param storeId 门店ID
      * @return 今日流水
@@ -51,7 +51,7 @@ public interface IBizOrderService {
      * 开单（→待收款）。行金额与总额服务端计算，pay_amount 恒 >0（杜绝 0 元单）
      *
      * @param bo 开单入参
-     * @return 订单ID（工作台连续收款用）
+     * @return 订单ID（连续收款用）
      */
     Long createByBo(BizOrderCreateBo bo);
 

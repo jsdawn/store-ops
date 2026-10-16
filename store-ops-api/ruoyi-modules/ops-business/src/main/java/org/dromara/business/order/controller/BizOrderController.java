@@ -32,10 +32,11 @@ import java.math.BigDecimal;
 import java.util.List;
 
 /**
- * 订单管理（管理台 pc 与员工端小程序工作台共用）
+ * 订单管理（管理台专用）
  *
- * <p>「共用」指<b>员工端</b>小程序工作台：店员登录 sys_user 员工账号（与 pc 同一套 Sa-Token 会话），
- * 请求走网关 /business/** → /order/**（详设 4.2）。开单/收款仅工作台使用（权限 3036/3037），
+ * <p>仅管理台（PC）调用，走网关 /business/** → /order/**（详设 4.2）。
+ * <b>小程序员工端</b>收银走独立的 /mp/staff/** 接口（MpStaffOrderController，本期后置，
+ * 详设 4.1 / member 详设 4.6 定稿 D10），与本类不共用 URL，仅共用 service 层；
  * 作废/冲正仅管理台入口。顾客端消费记录在 controller/mp/ 包另立（详设 4.3，本期后置）。</p>
  *
  * @author store-ops
@@ -69,7 +70,7 @@ public class BizOrderController extends BaseController {
     }
 
     /**
-     * 工作台今日流水（营业额/单量仅算已完成；列表含待收款带状态）
+     * 今日流水汇总（营业额/单量仅算已完成；列表含待收款带状态；员工端由 /mp/staff/** 独立接口共用 service）
      *
      * @param storeId 门店ID
      */
@@ -80,7 +81,7 @@ public class BizOrderController extends BaseController {
     }
 
     /**
-     * 开单（→待收款；返回订单ID供工作台连续收款；明细与总额服务端复算）
+     * 开单（→待收款；返回订单ID供连续收款；明细与总额服务端复算）
      */
     @SaCheckPermission("ops:order:add")
     @Log(title = "收银开单", businessType = BusinessType.INSERT)

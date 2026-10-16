@@ -1,9 +1,9 @@
 # 收银管理（ops-business · order 域）· 详细设计与数据库设计
 
-> 版本：v1.1（待审查；v1.1 变更：落实审查结论 ①券 stub ③两段式 ⑤作废仅店长，新增顾客端「我的消费记录」接口设计，见 4.3 / D9）
+> 版本：v1.2（v1.2 变更：**小程序员工端接口独立化**——不共用管理台 `/order/**`，走 `/mp/staff/**` 独立接口、仅共用 service 层（member 详设 4.6 定稿 D9–D11），员工端 controller 统一落各域 `controller/mp/`、类名 `MpStaff*` 前缀；**管理台恢复收银开单/收款功能定位**（订单页提供入口，3036/3037 为正式功能权限）；同步纠正第 6/7 节口径；v1.1 变更：落实审查结论 ①券 stub ③两段式 ⑤作废仅店长，新增顾客端「我的消费记录」接口设计，见 4.3 / D9）
 > 依据：PRD v1.0 §5.2.3 / §5.3 / §6.3–6.6、管理台原型（订单管理页）、mp 原型（收银开单 / 收银成功 / 今日流水页）、member 域详设与已落地代码
 > 对应实施路线：P2 会员与收银（member 域已落地，本详设为 order 域；券（coupon）域属 P3，本设计按「门面预留 + stub 接入」处理，见 4.4 / D3）
-> 端范围：后端订单域 + 管理台订单管理页；小程序工作台（店员/店长）与 pc 共用同一组 `/order/**` 接口（同 member 域模式）。顾客端新增**我的消费记录**查询接口（controller/mp/，见 4.3），仅查询、无写路径。
+> 端范围：后端订单域 + 管理台订单管理页（`/order/**` **管理台专用**，含收银开单/收款入口）。**小程序员工端**（店员/店长收银）走独立 `/mp/staff/**` 接口（`MpStaffOrderController`，本期后置实现，共用 service 层，见 member 详设 4.6 定稿）。顾客端新增**我的消费记录**查询接口（controller/mp/，见 4.3），仅查询、无写路径。
 
 ---
 
@@ -14,7 +14,7 @@
 - 会员可选、可跳过：散客单无余额 / 积分 / 券；会员单完成后按**券后实付金额 1:1** 落积分（member 域 `settleOrder` 已实现）。
 - 订单状态机：`待收款 → 已完成`、`待收款 → 已作废`；已收款订单**不可作废、不可退款**（本期），错账处理见 5.6。
 - 不存在 0 元单：应付金额必须 > 0 才可确认收款。
-- 管理台订单管理页：按数据权限过滤（店长本店 / 租户管理员全租户），提供查询 / 详情 / 备注 / 作废 / 余额冲正操作；本页**不提供开单**（开单只在工作台）。
+- 管理台订单管理页：按数据权限过滤（店长本店 / 租户管理员全租户），提供**开单 / 确认收款**（收银功能，见 7.3）与查询 / 详情 / 备注 / 作废 / 余额冲正操作；小程序工作台为同一收银能力的另一端入口（独立接口、共用 service）。
 
 ## 2. 全局约定（沿用 store / member 域定稿）
 
@@ -114,11 +114,12 @@ CREATE TABLE biz_order_item (
 ### 4.1 模块与服务
 
 - `IBizOrderService` + `BizOrderServiceImpl`（开单、收款、作废、余额冲正、查询）
-- `BizOrderController`（/order/**，管理台 + 小程序工作台共用）
+- `BizOrderController`（/order/**，**管理台专用**）
+- `MpStaffOrderController`（controller/mp/，/mp/staff/order/**，员工端收银：开单/收款/今日流水，本期后置实现，共用 service 层，鉴权见 member 详设 4.6）
 - `MpBizOrderController`（controller/mp/，/mp/order/**，顾客端我的消费记录，见 4.3）
 - 菜单/接口权限见第 6 节
 
-### 4.2 管理台 REST（controller/，管理台 + 小程序工作台共用，URL /order/**）
+### 4.2 管理台 REST（controller/，管理台专用，URL /order/**）
 
 | # | 方法 | URL | 说明 | 权限 |
 |---|---|---|---|---|
@@ -129,14 +130,14 @@ CREATE TABLE biz_order_item (
 | 5 | POST | `/order/{orderId}/balance-reversal` | 余额收款冲正（仅已完成 + 余额收款 + 当日 + 未冲正过）。Body：`{reason}` | `ops:order:reversal` |
 | 6 | GET | `/order/list` | 分页查询（门店/状态/支付方式/订单号/手机号关键字/日期区间） | `ops:order:list` |
 | 7 | GET | `/order/{orderId}` | 详情（含明细行、券信息占位） | `ops:order:query` |
-| 8 | GET | `/order/today` | 今日流水（工作台首页用）：`{营业额合计, 单量, list[]}`（本店当日已完成+待收款） | `ops:order:list` |
+| 8 | GET | `/order/today` | 今日流水汇总：`{营业额合计, 单量, list[]}`（本店当日已完成+待收款） | `ops:order:list` |
 | 9 | GET | `/order/coupon-options` | 选券候选（参数 memberId + totalAmount）。**本期 stub 返回空列表**，券域 P3 上线后由 coupon 域实现判定（见 4.4） | `ops:order:pay` |
 
 请求/响应要点：
 
 - **BizOrderCreateBo**：`items: [{itemName?, unitPrice, quantity}]`（1~50 行，unitPrice>0、quantity≥1）、`memberId?`（散客不传）。行金额与订单总额**服务端计算**，前端合计仅作展示。
 - **BizOrderVo**：orderNo / createTime / storeName / 会员（快照+散客标记）/ 三段金额（total/coupon/pay）/ couponId+券名（P3 前恒空）/ payType / status / earnedPoint / balanceReversed / operatorName / remark / voidReason。金额三段由后端返回，前端不做减法。
-- **GET /order/today** 返回：`{ totalAmount（当日已完成应付合计）, orderCount, list: BizOrderVo[] }`，list 仅当日、倒序、上限 50 条（工作台展示够用，管理台全量走 /order/list）。
+- **GET /order/today** 返回：`{ totalAmount（当日已完成应付合计）, orderCount, list: BizOrderVo[] }`，list 仅当日、倒序、上限 50 条（管理台订单页顶部汇总；员工端工作台由 `/mp/staff/**` 独立接口提供同口径数据，共用 service）。
 
 ### 4.3 顾客端 REST（controller/mp/，/mp/order/**）— 我的消费记录
 
@@ -178,7 +179,7 @@ public interface IBizCouponService {
 ```
 
 - 本期 `BizCouponServiceStubImpl`：`listUsableForOrder` 返回空列表、`writeOff` 抛「券功能未上线」；`BizOrderServiceImpl` 中所有券相关调用走此门面，券域真实实现落地后**无需改动 order 域代码**，替换实现即可。
-- 管理台/工作台选券区域：候选为空时显示「优惠券功能上线后开放」（前端按空列表处理，无需特性开关）。
+- 管理台/员工端选券区域：候选为空时显示「优惠券功能上线后开放」（前端按空列表处理，无需特性开关）。
 
 ## 5. 业务规则落地
 
@@ -221,7 +222,7 @@ public interface IBizCouponService {
 
 ### 5.5 门店停用联动
 
-停用门店：工作台开单 / 收款 / 作废接口均拦截（同 member 域口径「门店已停用，不可办理会员业务」）；管理台订单**查询不受影响**（历史订单可查，与 store 域停用语义一致）。
+停用门店：开单 / 收款 / 作废接口均拦截（管理台与员工端 `/mp/staff/**` 同口径，文案「门店已停用，不可办理会员业务」同 member 域）；管理台订单**查询不受影响**（历史订单可查，与 store 域停用语义一致）。
 
 ### 5.6 余额收款错账冲正（PRD 6.5 落地，仅管理台）
 
@@ -239,7 +240,7 @@ PRD：已收款订单不可作废不可退款；余额收款错账由有冲正�
 
 ### 5.8 order_no 与幂等
 
-- `order_no = ORD + yyMMdd + 雪花尾6`（如 `ORD261012347008`），与充值号 RC 同构，全局唯一约束兜底；展示层工作台/列表脱敏为 `订单 …7008` 尾号（同原型）。
+- `order_no = ORD + yyMMdd + 雪花尾6`（如 `ORD261012347008`），与充值号 RC 同构，全局唯一约束兜底；展示层（员工端工作台 / 管理台列表）脱敏为 `订单 …7008` 尾号（同原型）。
 - 幂等：创建与收款均挂 `@RepeatSubmit`（Redis，同参数 + 间隔拦截）；「同一 token 只落一笔」由「order_no 唯一 + 状态条件 UPDATE」保证，无需独立取 token 接口（决策 D5，待确认项②）。
 
 ## 6. 菜单与权限初始化（SQL 随代码交付 `script/sql/ops_order.sql`）
@@ -255,14 +256,14 @@ PRD：已收款订单不可作废不可退款；余额收款错账由有冲正�
 | 3034 | 订单备注 | F | `ops:order:remark` | 错账备注 |
 | 3035 | 余额收款冲正 | F | `ops:order:reversal` | 仅管理台，当日有效 |
 
-**开单/收款（`ops:order:add` / `ops:order:pay`）不设菜单**——仅小程序工作台使用，作为 F 按钮权限直接授权：
+**开单/收款权限码（`ops:order:add` / `ops:order:pay`）**：管理台收银功能的正式功能权限（管理台订单页提供开单/收款入口，见 7.3）；小程序员工端**不接 RBAC**（D10，`/mp/staff/**` 独立鉴权），不依赖这两个权限码：
 
 | menu_id | 名称 | 权限字符 | 说明 |
 |---|---|---|---|
-| 3036 | 收银开单 | `ops:order:add` | 工作台按钮权限 |
-| 3037 | 确认收款 | `ops:order:pay` | 工作台按钮权限 |
+| 3036 | 收银开单 | `ops:order:add` | 管理台开单入口按钮权限 |
+| 3037 | 确认收款 | `ops:order:pay` | 管理台收款按钮权限 |
 
-角色绑定（审查结论⑤定稿，SQL 注释同步说明，管理台手工勾选）：**店员**勾 3031/3032/3036/3037（收银闭环）；**店长**加 3033（作废，**仅店长**，店员不可作废）；**租户管理员**全量 + 3035（余额冲正，与充值冲正 3022 同级）。顾客端 `/mp/order/**` 不设菜单权限（不走 pc 权限体系，Mp-Token 鉴权）。
+角色绑定（管理台手工勾选）：**店长**勾 3031/3032/3033（含作废，**仅店长**，店员不可作废）/ 3034 / 3036 / 3037（管理台收银闭环）；**租户管理员**全量 + 3035（余额冲正，与充值冲正 3022 同级）；**店员**管理台无需订单菜单（收银走员工端 `/mp/staff/**`，不走 pc 权限体系）。顾客端 `/mp/order/**` 与员工端 `/mp/staff/**` 均不设菜单权限（Mp-Token 鉴权）。
 
 **字典**：新增 `order_status`（0 待收款/1 已完成/2 已作废）与 `order_pay_type`（1 余额收款/2 微信收款/3 支付宝收款/4 现金收款），插 000000 行后**管理台点「同步租户字典」**（见 docs/development/多租户字典与参数配置机制说明.md；注意先于页面使用，避免 NullValue 空缓存）。
 
@@ -270,24 +271,26 @@ PRD：已收款订单不可作废不可退款；余额收款错账由有冲正�
 
 ### 7.1 mp 工作台 · 收银开单页（p-cashier）
 
+> 员工端接口均为 `/mp/staff/**` 独立接口（`MpStaffOrderController` 等，本期后置实现），**共用下表所列 service 逻辑**，不走管理台 `/order/**`（D10）。
+
 | 原型区块 | 接口 | 表/来源 |
 |---|---|---|
-| 1·会员（可选，含余额/积分/券摘要、散客项） | 会员搜索复用 member `/member/search`；摘要字段随选带回 | biz_member |
-| 2·消费明细（逐笔 + 添加一笔 + 自动合计） | 前端草稿态；提交走 POST /order items[] | biz_order_item（落库后不可变） |
-| 订单总额（自动合计） | 前端实时展示；服务端 POST /order 复算 | total_amount |
-| 3·优惠券（限一张，不可用置灰） | GET /order/coupon-options（本期空列表 → 区块显示「上线后开放」） | coupon 域 P3 |
+| 1·会员（可选，含余额/积分/券摘要、散客项） | 员工端会员搜索（独立接口，共用 member 域搜索逻辑） | biz_member |
+| 2·消费明细（逐笔 + 添加一笔 + 自动合计） | 前端草稿态；提交走员工端开单接口（共用 5.1 校验链） | biz_order_item（落库后不可变） |
+| 订单总额（自动合计） | 前端实时展示；服务端复算 | total_amount |
+| 3·优惠券（限一张，不可用置灰） | 员工端选券候选（共用券门面 stub，本期空列表 → 区块显示「上线后开放」） | coupon 域 P3 |
 | 应付金额 / 本单积分预估 | 前端 = 总额 − 优惠额（本期无券即总额）；积分 = 应付等额，落账以服务端为准 | pay_amount / earned_point |
 | 4·支付方式（余额不足置灰） | pay 前按会员余额前端置灰；服务端 deductBalance 最终校验 | pay_type |
-| 确认收款（防重：按钮置灰+幂等） | POST /order/{id}/pay | status 条件 UPDATE |
+| 确认收款（防重：按钮置灰+幂等） | 员工端收款接口（共用 5.2 事务） | status 条件 UPDATE |
 
-交互口径：单页内「开单 → 收款」连续完成（前端连续调 #1、#2）；中断 / 收款失败留下**待收款单**，工作台今日流水与管理台可见，可作废重开。
+交互口径：单页内「开单 → 收款」连续完成；中断 / 收款失败留下**待收款单**，工作台今日流水与管理台可见，可作废重开。
 
 ### 7.2 mp 工作台 · 收银成功页（p-order-done）+ 今日流水页（p-orders）
 
 | 原型元素 | 接口/来源 |
 |---|---|
-| 收款成功摘要（订单号尾号、支付方式、三段金额、券核销、积分） | POST pay 返回后的 BizOrderVo（GET /order/{id} 兜底） |
-| 今日营业额 / 单量 / 流水列表（总额−券·支付方式·攒分） | GET /order/today（biz_order 聚合 + 当日 list） |
+| 收款成功摘要（订单号尾号、支付方式、三段金额、券核销、积分） | 员工端收款接口返回的 BizOrderVo（员工端详情接口兜底） |
+| 今日营业额 / 单量 / 流水列表（总额−券·支付方式·攒分） | 员工端今日流水独立接口（共用 biz_order 聚合逻辑，同 4.2 #8 口径） |
 
 ### 7.3 管理台 · 订单管理页（pg-order）
 
@@ -295,6 +298,7 @@ PRD：已收款订单不可作废不可退款；余额收款错账由有冲正�
 |---|---|
 | 筛选：门店（租户视角）/ 状态 / 支付方式 / 订单号·手机号 | GET /order/list（字典 order_status、order_pay_type） |
 | 列：订单号/时间、门店、会员（散客）、总额、优惠额（券名）、应付、支付方式 tag、状态 tag、本单积分 | BizOrderVo（storeName 门面补齐同 member；券名 P3 前恒 —） |
+| 操作：开单（按钮，弹窗：选会员/散客 + 明细逐笔 + 支付方式，连续完成开单→收款） | POST /order（共用 5.1）→ POST /order/{id}/pay（共用 5.2） |
 | 操作：详情 | GET /order/{id}（弹窗含明细行） |
 | 操作：备注（已完成） | PUT /order/{id}/remark |
 | 操作：作废（仅待收款，红色） | POST /order/{id}/void（原因必填弹窗） |

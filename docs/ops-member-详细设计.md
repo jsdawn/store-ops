@@ -18,10 +18,10 @@
 
 | 项 | 约定 | 说明 |
 |---|---|---|
-| 通用约定 | 直接引用《ops-store-详细设计》第 2 节 | biz_ 前缀、雪花主键、tenant_id 插件注入、store_id + dept_id 冗余、审计字段、del_flag、decimal(2) 精度、controller 分端（`controller/` 管理台+员工端、`controller/mp/` 顾客端） |
+| 通用约定 | 直接引用《ops-store-详细设计》第 2 节 | biz_ 前缀、雪花主键、tenant_id 插件注入、store_id + dept_id 冗余、审计字段、del_flag、decimal(2) 精度、controller 分端（`controller/` 管理台、`controller/mp/` 顾客端与员工端（MpStaff 前缀）） |
 | 金额/积分实现口径 | **以「元」为单位 `decimal(12,2)` 存储**，两位小数即「分为最小单位」的精度要求，展示层无需换算 | 与 PRD 6.4「以分存储、展示转元」字面表述的微小出入见 9 节决策记录 D1 |
 | 包结构 | `org.dromara.business.member`：controller / controller/mp / domain / mapper / service | 与 store 域并列；跨域（order / coupon）只允许走 service 门面，禁止注入他域 Mapper |
-| URL 前缀 | 员工端 `/member/**`（网关 `/business/member/**`，StripPrefix=1）；顾客端 `/mp/member/**`（网关不剥前缀） | 网关路由已就绪，无需新增 |
+| URL 前缀 | 管理台 `/member/**`（网关 `/business/member/**`，StripPrefix=1）；员工端 `/mp/staff/**`、顾客端 `/mp/member/**`（均网关不剥前缀） | 网关路由已就绪，无需新增 |
 | 字典 | `member_pay_type`：`1` 微信收款 / `2` 支付宝收款 / `3` 现金收款；`balance_log_type`：`1` 充值 / `2` 消费 / `3` 冲正；`point_log_type`：`1` 消费获得 / `2` 兑换消耗 | 字典常量类 + sys_dict_data 初始化 |
 | 手机号脱敏 | 列表展示统一 `138****6688` 格式，由前端脱敏，接口返回全量手机号 | 管理台/员工端为内部使用者，不脱敏传输 |
 

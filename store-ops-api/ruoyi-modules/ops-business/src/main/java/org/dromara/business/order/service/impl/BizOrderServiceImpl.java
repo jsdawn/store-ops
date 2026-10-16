@@ -98,7 +98,7 @@ public class BizOrderServiceImpl implements IBizOrderService {
     }
 
     /**
-     * 工作台今日流水（营业额/单量仅算已完成；列表含待收款带状态，审查结论⑦）
+     * 今日流水汇总（营业额/单量仅算已完成；列表含待收款带状态，审查结论⑦）
      */
     @Override
     public OrderTodayVo queryToday(Long storeId) {

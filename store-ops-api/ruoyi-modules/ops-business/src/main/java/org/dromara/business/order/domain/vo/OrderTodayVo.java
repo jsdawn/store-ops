@@ -8,7 +8,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 /**
- * 工作台今日流水视图（GET /order/today）
+ * 今日流水视图（GET /order/today）
  *
  * <p>口径（审查结论⑦）：营业额/单量仅算已完成；列表含待收款并带状态，倒序上限 50 条。</p>
  *

@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 充值流水（管理台；冲正仅管理台入口，小程序工作台无冲正功能）
+ * 充值流水（管理台专用；冲正仅管理台入口，员工端 /mp/staff/** 无冲正功能）
  *
  * @author store-ops
  */

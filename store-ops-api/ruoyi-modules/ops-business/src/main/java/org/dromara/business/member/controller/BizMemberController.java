@@ -24,12 +24,12 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /**
- * 会员管理（管理台 pc 与员工端小程序工作台共用）
+ * 会员管理（管理台专用）
  *
- * <p>「共用」指<b>员工端</b>小程序工作台：店员登录 sys_user 员工账号（与 pc 同一套 Sa-Token 会话），
- * 请求走网关 /business/** → /member/**，与管理台复用同一组接口（详设 4.2）。
- * <b>顾客端</b>（biz_member 微信用户）走 /mp/** 路由（网关不剥前缀），
- * 接口在 controller/mp/ 包另立（详设 4.3），与本类无关。</p>
+ * <p>仅管理台（PC）调用，走网关 /business/** → /member/**（详设 4.2）。
+ * <b>小程序员工端</b>走独立的 /mp/staff/** 接口（MpStaff* 前缀 controller，详设 4.6 定稿 D10），
+ * 与本类不共用 URL，仅共用 service 层。<b>顾客端</b>（biz_member 微信用户）走 /mp/member/**
+ * （网关不剥前缀），接口在 controller/mp/ 包另立（详设 4.3），与本类无关。</p>
  *
  * <p>本期不提供编辑/删除会员接口：手机号=身份不可改，录错只能弃用重建（详设 T3）。</p>
  *
