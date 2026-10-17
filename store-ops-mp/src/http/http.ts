@@ -30,8 +30,9 @@ export function http<T>(options: CustomRequestOptions) {
         if (isTokenExpired) {
           const tokenStore = useTokenStore()
           if (!isDoubleTokenMode) {
-            // 未启用双token策略，清理用户信息，跳转到登录页
-            tokenStore.logout()
+            // 未启用双token策略：仅清除本地会话并跳转登录页。
+            // mp token 为不透明 Redis 凭证，服务端无对应登出接口，不能再调 logout 产生 404 噪音
+            tokenStore.clearLocalSession()
             toLoginPage()
             return reject(createHttpError({
               type: HttpErrorType.Auth,

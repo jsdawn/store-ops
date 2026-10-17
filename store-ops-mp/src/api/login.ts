@@ -1,5 +1,10 @@
 import type { IAuthLoginRes, ICaptcha, IDoubleTokenRes, IUpdateInfo, IUpdatePassword, IUserInfoRes } from './types/login'
 import { http } from '@/http/http'
+import { getEnvBaseUrl } from '@/utils'
+
+// 登录/登出接口走 /auth/** 路由（→ ruoyi-auth，StripPrefix 1），需剥掉 /mp 回到网关根，
+// 否则会被拼成 /mp/auth/** 落到 ops-business 报 404
+const authBase = (getEnvBaseUrl() ?? '').replace(/\/mp$/, '')
 
 /**
  * 登录表单
@@ -41,10 +46,10 @@ export function getUserInfo() {
 }
 
 /**
- * 退出登录
+ * 退出登录：实际请求 {authBase}/auth/logout（POST，网关 /auth/** → ruoyi-auth），不能带业务前缀 /mp
  */
 export function logout() {
-  return http.get<void>('/auth/logout')
+  return http.post<void>(`${authBase}/auth/logout`)
 }
 
 /**

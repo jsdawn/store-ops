@@ -174,6 +174,21 @@ export const useTokenStore = defineStore(
     }
 
     /**
+     * 仅清除本地会话（不发任何请求）。
+     * 供 401 处理使用：mp token 是不透明 Redis 凭证（Mp-Token），服务端无对应登出接口，
+     * 401 时再调管理台登出接口只会产生 404 噪音（/mp/auth/logout）。
+     */
+    const clearLocalSession = () => {
+      // 清除存储的过期时间
+      uni.removeStorageSync('accessTokenExpireTime')
+      uni.removeStorageSync('refreshTokenExpireTime')
+      tokenInfo.value = { ...tokenInfoState }
+      uni.removeStorageSync('token')
+      useUserStore().clearUserInfo()
+      updateNowTime()
+    }
+
+    /**
      * 退出登录 并 删除用户信息
      */
     const logout = async () => {
@@ -185,17 +200,8 @@ export const useTokenStore = defineStore(
         console.error('退出登录失败:', error)
       }
       finally {
-        updateNowTime()
-
         // 无论成功失败，都需要清除本地token信息
-        // 清除存储的过期时间
-        uni.removeStorageSync('accessTokenExpireTime')
-        uni.removeStorageSync('refreshTokenExpireTime')
-        console.log('退出登录-清除用户信息')
-        tokenInfo.value = { ...tokenInfoState }
-        uni.removeStorageSync('token')
-        const userStore = useUserStore()
-        userStore.clearUserInfo()
+        clearLocalSession()
       }
     }
 
@@ -298,6 +304,7 @@ export const useTokenStore = defineStore(
       login,
       wxLogin,
       logout,
+      clearLocalSession,
 
       // 认证状态判断（最常用的）
       hasLogin: hasValidLogin,

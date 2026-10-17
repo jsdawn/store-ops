@@ -32,6 +32,10 @@ function stripPagesJsonComments() {
 
 export default defineConfig({
   plugins: [stripPagesJsonComments(), vue()],
+  // 与 vite.config.ts 对齐：env 文件在 env/ 目录。不加载的话 import.meta.env.VITE_*
+  // 全为 undefined，模块顶层调用 getEnvBaseUrl() 的文件（api/mp、api/login）会被
+  // 测试 import 链拖入时直接 TypeError（getEnvBaseUrl 返回 undefined 再 .replace）
+  envDir: path.resolve(process.cwd(), 'env'),
   test: {
     environment: 'jsdom',
     globals: true,
