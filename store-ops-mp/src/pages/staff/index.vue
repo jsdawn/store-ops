@@ -43,7 +43,7 @@ function exitStaff() {
   uni.navigateBack()
 }
 
-/** 宫格入口：充值页已上线，其余对应功能页后续迭代 */
+/** 宫格入口：充值 / 收银开单已上线，其余对应功能页后续迭代 */
 function open(item: (typeof gridItems)[number]) {
   if (item.path)
     uni.navigateTo({ url: item.path })
@@ -53,7 +53,7 @@ function open(item: (typeof gridItems)[number]) {
 
 /** 宫格配置：icon 色块底色 / icon 色 / 标题 / 副标题 / 路由（设计稿 39:418 宫格卡） */
 const gridItems = [
-  { icon: 'i-my-icons-cashier', bg: 'bg-[#e8f1ff]', color: '#4d9fff', title: '收银开单', subtitle: '逐笔录入 · 确认收款', path: '' },
+  { icon: 'i-my-icons-cashier', bg: 'bg-[#e8f1ff]', color: '#4d9fff', title: '收银开单', subtitle: '逐笔录入 · 确认收款', path: '/pages/staff/cashier' },
   { icon: 'i-my-icons-wallet', bg: 'bg-[#fff6dc]', color: '#f5a623', title: '会员充值', subtitle: '线下收款 · 确认到账', path: '/pages/staff/recharge' },
   { icon: 'i-my-icons-staff-search', bg: 'bg-[#e6f9ee]', color: '#34c77b', title: '会员查询', subtitle: '本店会员池', path: '' },
   { icon: 'i-my-icons-flow', bg: 'bg-[#ffe9f0]', color: '#ff5c7a', title: '今日流水', subtitle: '订单 · 支付方式', path: '' },

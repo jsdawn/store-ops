@@ -1,8 +1,9 @@
 <script lang="ts" setup>
 import type { IMpStaffMemberBrief } from '@/api/mp'
+import type { PayTypeOption } from '@/components/business/pay-type-picker.vue'
 import { getRechargeToken, staffRecharge } from '@/api/mp'
-import MemberPicker from './components/member-picker.vue'
-import PayTypePicker from './components/pay-type-picker.vue'
+import MemberPicker from '@/components/business/member-picker.vue'
+import PayTypePicker from '@/components/business/pay-type-picker.vue'
 
 /**
  * 会员充值（设计稿 107:107「16 会员充值」，375×844 稿 ×2rpx）：
@@ -50,6 +51,13 @@ const PAY_TYPE_LABELS: Record<string, string> = {
   3: '现金收款',
 }
 const payTypeLabel = computed(() => PAY_TYPE_LABELS[payType.value] ?? '')
+
+/** 充值方式选项（member 域字典：1微信 2支付宝 3现金；与 order 域 1余额2微信3支付宝4现金 不同） */
+const payTypeOptions: PayTypeOption[] = [
+  { value: '1', label: '微信收款', char: '微', bg: '#e6f9ee', color: '#34c77b' },
+  { value: '2', label: '支付宝收款', char: '支', bg: '#e8f1ff', color: '#4d9fff' },
+  { value: '3', label: '现金收款', char: '现', bg: '#fff6dc', color: '#f5a623' },
+]
 
 // ---- 金额与合计 ----
 const amountNum = computed(() => Number.parseFloat(amountText.value) || 0)
@@ -282,6 +290,13 @@ async function handleSubmit() {
 
     <!-- 弹层：选会员 / 选充值方式 -->
     <MemberPicker v-model="showMemberPicker" :selected-id="selectedMember?.memberId" @picked="onMemberPicked" />
-    <PayTypePicker v-model="showPayTypePicker" :current="payType" @picked="onPayTypePicked" />
+    <PayTypePicker
+      v-model="showPayTypePicker"
+      title="选择充值方式"
+      subtitle="点击即选用并回填"
+      :options="payTypeOptions"
+      :current="payType"
+      @picked="onPayTypePicked"
+    />
   </view>
 </template>

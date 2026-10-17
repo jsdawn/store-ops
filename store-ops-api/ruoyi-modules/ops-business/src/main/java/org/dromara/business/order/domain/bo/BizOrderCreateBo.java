@@ -38,4 +38,17 @@ public class BizOrderCreateBo extends BaseEntity {
     @Size(max = 50, message = "消费明细最多{max}行")
     private List<BizOrderItemBo> items;
 
+    /**
+     * 开单操作人ID（sys_user）
+     *
+     * <p>管理台不传（走 PC 登录态 LoginHelper）；mp 员工端显式传入（token 内 employeeId，决策 D11），
+     * 员工端无 PC 会话，LoginHelper 取不到值。</p>
+     */
+    private Long operatorId;
+
+    /**
+     * 开单操作人姓名快照（员工端显式传入，实时复检取回）
+     */
+    private String operatorName;
+
 }

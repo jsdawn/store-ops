@@ -2,6 +2,7 @@ package org.dromara.business.staff.service;
 
 import org.dromara.business.member.domain.bo.MpStaffRechargeBo;
 import org.dromara.business.member.domain.vo.MpStaffMemberBriefVo;
+import org.dromara.business.order.domain.bo.MpStaffOrderCreateBo;
 import org.dromara.business.staff.domain.vo.MpStaffHomeVo;
 
 import java.util.List;
@@ -52,5 +53,36 @@ public interface IMpStaffService {
      * @param employeeId 员工身份ID（token 换出，操作人）
      */
     void recharge(MpStaffRechargeBo bo, Long memberId, Long employeeId);
+
+    /**
+     * 签发开单提交凭证（Redis 一次有效，5 分钟，防弱网重复开单，与充值凭证同构）
+     *
+     * @param memberId   会员ID（token 换出）
+     * @param employeeId 员工身份ID（token 换出）
+     * @return 提交凭证
+     */
+    String issueOrderToken(Long memberId, Long employeeId);
+
+    /**
+     * 收银开单（员工端，→待收款）：门店由员工所属门店解析，操作人 = 员工身份；
+     * 行金额/总额/应收服务端计算（共用管理台开单内核，详设 5.1）
+     *
+     * @param bo         开单入参（含一次性提交凭证）
+     * @param memberId   会员ID（token 换出，定位员工所属门店）
+     * @param employeeId 员工身份ID（token 换出，操作人）
+     * @return 订单ID（供连续收款）
+     */
+    Long createOrder(MpStaffOrderCreateBo bo, Long memberId, Long employeeId);
+
+    /**
+     * 确认收款（员工端，→已完成）：订单必须属当前门店；核心事务共用管理台收款内核
+     * （余额扣减/积分落账 + 状态条件 UPDATE 防并发，详设 5.2）
+     *
+     * @param orderId    订单ID
+     * @param payType    支付方式（order_pay_type：1余额 2微信 3支付宝 4现金）
+     * @param memberId   会员ID（token 换出，定位员工所属门店）
+     * @param employeeId 员工身份ID（token 换出）
+     */
+    Boolean payOrder(Long orderId, String payType, Long memberId, Long employeeId);
 
 }

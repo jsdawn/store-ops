@@ -168,8 +168,11 @@ public class BizOrderServiceImpl implements IBizOrderService {
         order.setPayAmount(payAmount);
         order.setStatus(OpsOrderConstants.STATUS_PENDING);
         order.setBalanceReversed(OpsOrderConstants.REVERSED_NO);
-        order.setOperatorId(LoginHelper.getUserId());
-        order.setOperatorName(LoginHelper.getUsername());
+        // 操作人：管理台走 PC 登录态；mp 员工端显式传入（无 PC 会话，决策 D11）
+        Long operatorId = bo.getOperatorId() != null ? bo.getOperatorId() : LoginHelper.getUserId();
+        String operatorName = StringUtils.isNotBlank(bo.getOperatorName()) ? bo.getOperatorName() : LoginHelper.getUsername();
+        order.setOperatorId(operatorId);
+        order.setOperatorName(operatorName);
         baseMapper.insert(order);
         items.forEach(item -> {
             item.setOrderId(order.getOrderId());

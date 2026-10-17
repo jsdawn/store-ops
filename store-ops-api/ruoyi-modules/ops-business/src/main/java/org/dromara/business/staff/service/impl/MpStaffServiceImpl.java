@@ -11,6 +11,12 @@ import org.dromara.business.member.domain.bo.MpStaffRechargeBo;
 import org.dromara.business.member.domain.vo.MpStaffMemberBriefVo;
 import org.dromara.business.member.mapper.BizMemberMapper;
 import org.dromara.business.member.service.IBizMemberService;
+import org.dromara.business.order.constant.OpsOrderConstants;
+import org.dromara.business.order.domain.bo.BizOrderCreateBo;
+import org.dromara.business.order.domain.bo.BizOrderPayBo;
+import org.dromara.business.order.domain.bo.MpStaffOrderCreateBo;
+import org.dromara.business.order.domain.vo.BizOrderVo;
+import org.dromara.business.order.service.IBizOrderService;
 import org.dromara.business.staff.domain.vo.MpStaffHomeVo;
 import org.dromara.business.staff.service.IMpStaffService;
 import org.dromara.business.store.domain.BizStore;
@@ -18,6 +24,7 @@ import org.dromara.business.store.mapper.BizStoreMapper;
 import org.dromara.common.core.constant.SystemConstants;
 import org.dromara.common.core.exception.ServiceException;
 import org.dromara.common.core.utils.StringUtils;
+import org.dromara.common.mybatis.helper.DataPermissionHelper;
 import org.dromara.common.redis.utils.RedisUtils;
 import org.dromara.common.tenant.helper.TenantHelper;
 import org.dromara.system.api.RemoteUserService;
@@ -45,6 +52,7 @@ public class MpStaffServiceImpl implements IMpStaffService {
     private final BizMemberMapper memberMapper;
     private final BizStoreMapper storeMapper;
     private final IBizMemberService memberService;
+    private final IBizOrderService orderService;
 
     @DubboReference
     private RemoteUserService remoteUserService;
@@ -121,6 +129,58 @@ public class MpStaffServiceImpl implements IMpStaffService {
         rechargeBo.setRemark(bo.getRemark());
         TenantHelper.dynamic(ctx.store().getTenantId(), () ->
             memberService.rechargeByStaff(rechargeBo, employeeId, ctx.staffName()));
+    }
+
+    @Override
+    public String issueOrderToken(Long memberId, Long employeeId) {
+        StaffContext ctx = requireStaffContext(memberId, employeeId);
+        String token = IdUtil.fastSimpleUUID();
+        // value 绑定门店上下文，防跨店重放（与充值凭证同构）
+        RedisUtils.setCacheObject(OpsOrderConstants.MP_ORDER_TOKEN_KEY + token,
+            ctx.member().getMemberId() + "|" + ctx.store().getStoreId(),
+            Duration.ofMinutes(OpsOrderConstants.MP_ORDER_TOKEN_TTL_MINUTES));
+        return token;
+    }
+
+    @Override
+    public Long createOrder(MpStaffOrderCreateBo bo, Long memberId, Long employeeId) {
+        StaffContext ctx = requireStaffContext(memberId, employeeId);
+        // 提交凭证一次有效：不存在 / 不匹配当前门店上下文 → 拒绝（防弱网重复开单与跨店重放）
+        String tokenKey = OpsOrderConstants.MP_ORDER_TOKEN_KEY + bo.getOrderToken();
+        Object cached = RedisUtils.getCacheObject(tokenKey);
+        String expected = ctx.member().getMemberId() + "|" + ctx.store().getStoreId();
+        if (cached == null || !expected.equals(cached.toString())) {
+            throw new ServiceException("提交凭证已失效，请刷新后重试");
+        }
+        RedisUtils.deleteObject(tokenKey);
+        // 组装管理台开单入参：门店 = 员工所属门店，操作人 = 员工身份（决策 D11）；
+        // 会员归属由共用内核内校验（selectMemberVoById 同款口径：属本店才受理）
+        BizOrderCreateBo createBo = new BizOrderCreateBo();
+        createBo.setStoreId(ctx.store().getStoreId());
+        createBo.setMemberId(bo.getMemberId());
+        createBo.setItems(bo.getItems());
+        createBo.setOperatorId(employeeId);
+        createBo.setOperatorName(ctx.staffName());
+        return TenantHelper.dynamic(ctx.store().getTenantId(), () -> orderService.createByBo(createBo));
+    }
+
+    @Override
+    public Boolean payOrder(Long orderId, String payType, Long memberId, Long employeeId) {
+        StaffContext ctx = requireStaffContext(memberId, employeeId);
+        // 决策 D10：mp 员工端不走 PC 数据权限——@DataPermission 注解方法（selectOrderVoById）内部
+        // 依赖 Sa-Token 会话（LoginHelper），mp token 无会话会抛 NotLoginException；
+        // 数据边界由下方 storeId 归属校验保证（员工只能操作本店订单）
+        BizOrderVo order = TenantHelper.dynamic(ctx.store().getTenantId(),
+            () -> DataPermissionHelper.ignore(() -> orderService.queryById(orderId)));
+        if (order == null || !ctx.store().getStoreId().equals(order.getStoreId())) {
+            throw new ServiceException("订单不存在或无权操作");
+        }
+        BizOrderPayBo payBo = new BizOrderPayBo();
+        payBo.setPayType(payType);
+        // 收款核心事务共用管理台内核：余额扣减/积分落账 + 状态条件 UPDATE 防并发收款（详设 5.2）；
+        // pay 内部同样经 selectOrderVoById 复查订单，一并置于 ignore 范围
+        return TenantHelper.dynamic(ctx.store().getTenantId(),
+            () -> DataPermissionHelper.ignore(() -> orderService.pay(orderId, payBo)));
     }
 
     /**

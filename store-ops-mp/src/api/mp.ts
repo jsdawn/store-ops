@@ -175,3 +175,42 @@ export interface IMpStaffRecharge {
 export function staffRecharge(data: IMpStaffRecharge) {
   return http.post<void>('/staff/member/recharge', data)
 }
+
+/** 员工端开单明细行（对应后端 BizOrderItemBo，行金额服务端计算） */
+export interface IMpStaffOrderItem {
+  itemName?: string
+  unitPrice: number
+  quantity: number
+}
+
+/** 员工端开单入参（对应后端 MpStaffOrderCreateBo，storeId 由后端按员工门店解析） */
+export interface IMpStaffOrderCreate {
+  memberId?: string
+  items: IMpStaffOrderItem[]
+  orderToken: string
+}
+
+/**
+ * 签发开单提交凭证（Redis 一次有效，5 分钟，防弱网重复开单，与充值凭证同构）
+ */
+export function getOrderToken() {
+  return http.post<string>('/staff/order/token')
+}
+
+/**
+ * 员工端收银开单（→待收款）：返回订单ID，供页面连续调用收款
+ * 路径说明同 getStaffHome：baseURL 已含 /mp，相对路径不重复带前缀
+ */
+export function staffCreateOrder(data: IMpStaffOrderCreate) {
+  return http.post<string>('/staff/order', data)
+}
+
+/**
+ * 员工端确认收款（→已完成）：余额收款同事务扣减，不足整单失败；
+ * 重复收款由服务端状态机拦截（「该订单已收款」）
+ * @param orderId 订单ID（开单返回）
+ * @param payType 支付方式（order 域字典：1余额 2微信 3支付宝 4现金）
+ */
+export function staffPayOrder(orderId: string, payType: string) {
+  return http.post<void>(`/staff/order/${orderId}/pay`, { payType })
+}

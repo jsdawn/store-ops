@@ -64,4 +64,15 @@ public class OpsOrderConstants {
      */
     public static final int ORDER_NO_TAIL_LENGTH = 6;
 
+    /**
+     * mp 员工端开单提交凭证 Redis key 前缀（完整 key = 前缀 + uuid，value = memberId|storeId，
+     * 一次有效，防弱网重复开单；与充值凭证同构，详设 5.1 第 6 步「@RepeatSubmit 幂等」的员工端等价物）
+     */
+    public static final String MP_ORDER_TOKEN_KEY = "ops:mp:order:token:";
+
+    /**
+     * mp 员工端开单提交凭证有效期（分钟，同充值凭证口径）
+     */
+    public static final long MP_ORDER_TOKEN_TTL_MINUTES = 5;
+
 }

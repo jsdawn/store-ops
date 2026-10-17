@@ -1,9 +1,9 @@
 # 收银管理（ops-business · order 域）· 详细设计与数据库设计
 
-> 版本：v1.2（v1.2 变更：**小程序员工端接口独立化**——不共用管理台 `/order/**`，走 `/mp/staff/**` 独立接口、仅共用 service 层（member 详设 4.6 定稿 D9–D11），员工端 controller 统一落各域 `controller/mp/`、类名 `MpStaff*` 前缀；**管理台恢复收银开单/收款功能定位**（订单页提供入口，3036/3037 为正式功能权限）；同步纠正第 6/7 节口径；v1.1 变更：落实审查结论 ①券 stub ③两段式 ⑤作废仅店长，新增顾客端「我的消费记录」接口设计，见 4.3 / D9）
+> 版本：v1.3（v1.3 变更：**员工端收银开单落地**——`MpStaffOrderController`（controller/mp/，/mp/staff/order/**）实现开单/收款（共用 service 层，决策 D9–D11 同充值）；操作人经 `BizOrderCreateBo.operatorId/operatorName` 显式传入（管理台留空走 PC 登录态）；防重复开单用 Redis 一次性凭证（与充值凭证同构）；小程序收银开单页（设计稿 39:497/107:1）落地，选会员/选支付方式弹层提取为公共业务组件 `src/components/business/`（充值/收银共用）；优惠券仍 stub（P3）。v1.2 变更：**小程序员工端接口独立化**——不共用管理台 `/order/**`，走 `/mp/staff/**` 独立接口、仅共用 service 层（member 详设 4.6 定稿 D9–D11），员工端 controller 统一落各域 `controller/mp/`、类名 `MpStaff*` 前缀；**管理台恢复收银开单/收款功能定位**（订单页提供入口，3036/3037 为正式功能权限）；同步纠正第 6/7 节口径；v1.1 变更：落实审查结论 ①券 stub ③两段式 ⑤作废仅店长，新增顾客端「我的消费记录」接口设计，见 4.3 / D9）
 > 依据：PRD v1.0 §5.2.3 / §5.3 / §6.3–6.6、管理台原型（订单管理页）、mp 原型（收银开单 / 收银成功 / 今日流水页）、member 域详设与已落地代码
 > 对应实施路线：P2 会员与收银（member 域已落地，本详设为 order 域；券（coupon）域属 P3，本设计按「门面预留 + stub 接入」处理，见 4.4 / D3）
-> 端范围：后端订单域 + 管理台订单管理页（`/order/**` **管理台专用**，含收银开单/收款入口）。**小程序员工端**（店员/店长收银）走独立 `/mp/staff/**` 接口（`MpStaffOrderController`，本期后置实现，共用 service 层，见 member 详设 4.6 定稿）。顾客端新增**我的消费记录**查询接口（controller/mp/，见 4.3），仅查询、无写路径。
+> 端范围：后端订单域 + 管理台订单管理页（`/order/**` **管理台专用**，含收银开单/收款入口）。**小程序员工端**（店员/店长收银）走独立 `/mp/staff/**` 接口（`MpStaffOrderController` 已实现，共用 service 层，见 member 详设 4.6 定稿）。顾客端新增**我的消费记录**查询接口（controller/mp/，见 4.3），仅查询、无写路径。
 
 ---
 
@@ -115,7 +115,7 @@ CREATE TABLE biz_order_item (
 
 - `IBizOrderService` + `BizOrderServiceImpl`（开单、收款、作废、余额冲正、查询）
 - `BizOrderController`（/order/**，**管理台专用**）
-- `MpStaffOrderController`（controller/mp/，/mp/staff/order/**，员工端收银：开单/收款/今日流水，本期后置实现，共用 service 层，鉴权见 member 详设 4.6）
+- `MpStaffOrderController`（controller/mp/，/mp/staff/order/**，员工端收银：开单/收款已实现，今日流水后续；共用 service 层，鉴权见 member 详设 4.6）
 - `MpBizOrderController`（controller/mp/，/mp/order/**，顾客端我的消费记录，见 4.3）
 - 菜单/接口权限见第 6 节
 
@@ -138,6 +138,23 @@ CREATE TABLE biz_order_item (
 - **BizOrderCreateBo**：`items: [{itemName?, unitPrice, quantity}]`（1~50 行，unitPrice>0、quantity≥1）、`memberId?`（散客不传）。行金额与订单总额**服务端计算**，前端合计仅作展示。
 - **BizOrderVo**：orderNo / createTime / storeName / 会员（快照+散客标记）/ 三段金额（total/coupon/pay）/ couponId+券名（P3 前恒空）/ payType / status / earnedPoint / balanceReversed / operatorName / remark / voidReason。金额三段由后端返回，前端不做减法。
 - **GET /order/today** 返回：`{ totalAmount（当日已完成应付合计）, orderCount, list: BizOrderVo[] }`，list 仅当日、倒序、上限 50 条（管理台订单页顶部汇总；员工端工作台由 `/mp/staff/**` 独立接口提供同口径数据，共用 service）。
+
+**mp 员工端 REST（controller/mp/，URL /mp/staff/order/**，详设 4.6 / 决策 D10：不共用管理台 URL，仅共用 service 层）**：
+
+| # | 方法 | URL | 说明 | 鉴权 |
+|---|---|---|---|---|
+| 1 | POST | `/mp/staff/order/token` | 签发开单提交凭证（Redis 一次有效 5 分钟，value=memberId\|storeId 防跨店重放，与充值凭证同构） | Mp-Token |
+| 2 | POST | `/mp/staff/order` | 开单（→待收款）。Body：`MpStaffOrderCreateBo`（items[]、memberId?、orderToken）；storeId/操作人由服务层按员工身份解析 | Mp-Token |
+| 3 | POST | `/mp/staff/order/{orderId}/pay` | 确认收款（→已完成）。Body：`BizOrderPayBo`（payType 1余额 2微信 3支付宝 4现金） | Mp-Token |
+
+员工端要点：
+
+- **storeId 不入参**：服务层 `MpStaffServiceImpl` 经 `requireStaffContext`（会员→门店→员工身份实时复检，决策 D9）解析，门店圈定与操作人身份（employeeId=管理用户ID + 实时复检姓名，决策 D11）全部服务端完成。
+- **数据权限绕过（D10 落地细节）**：共用内核的 `selectOrderVoById` 带 `@DataPermission`（dept/create_by 数据范围，依赖 Sa-Token 会话 `LoginHelper`）；mp token 无会话，命中即抛 NotLoginException（sa-token 按「token 已被冻结」上报，实为无会话记录）。员工端调用统一以 `DataPermissionHelper.ignore` 关闭数据权限，数据边界由服务层 storeId 归属校验保证（`payOrder` 校验订单属本店）。今日流水接口（后续迭代）同样需要。
+- **操作人显式传入**：`BizOrderCreateBo` 新增 `operatorId/operatorName` 服务端可控字段，管理台留空走 `LoginHelper`（PC 登录态），员工端显式传——员工端无 Sa-Token pc 会话。
+- **收款幂等**：状态机天然幂等（重复收款在 status 校验处拦截「该订单已收款」，余额扣减在状态校验之后，不会重复扣）；开单防重靠一次性凭证。
+- **散客/余额置灰口径**：前端按「未选会员」与「会员余额 < 应付」置灰余额收款，服务端 `pay` 内 `deductBalance` 最终校验（散客单不支持余额收款）。
+- 今日流水员工端接口（`/mp/staff/order/today`）随流水页后续迭代，本期不做。
 
 ### 4.3 顾客端 REST（controller/mp/，/mp/order/**）— 我的消费记录
 
@@ -271,7 +288,7 @@ PRD：已收款订单不可作废不可退款；余额收款错账由有冲正�
 
 ### 7.1 mp 工作台 · 收银开单页（p-cashier）
 
-> 员工端接口均为 `/mp/staff/**` 独立接口（`MpStaffOrderController` 等，本期后置实现），**共用下表所列 service 逻辑**，不走管理台 `/order/**`（D10）。
+> 员工端接口均为 `/mp/staff/**` 独立接口（`MpStaffOrderController` 已实现），**共用下表所列 service 逻辑**，不走管理台 `/order/**`（D10）。
 
 | 原型区块 | 接口 | 表/来源 |
 |---|---|---|

@@ -7,7 +7,7 @@ import { debounce } from '@/utils/debounce'
 withDefaults(defineProps<{ selectedId?: string }>(), { selectedId: '' })
 
 /**
- * 选择会员底部弹层（设计稿 39:619「12 选择会员」员工端复用版）：
+ * 选择会员底部弹层（设计稿 39:619「12 选择会员」员工端复用版，充值 / 收银共用）：
  * 搜索手机号 / 卡号 / 昵称，点选即回填并关闭（详设开发说明：无散客项）。
  * 本店会员池由后端按员工所属门店圈定，前端不做归属判断。
  */
